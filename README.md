@@ -1,16 +1,18 @@
-# pygformula: a python implementation of the parametric g-formula
+# pygformulaICU: a python implementation of the parametric g-formula for dynamic treatment lengths typical in ICU care
 
-[![PyPI version](https://badge.fury.io/py/pygformula.svg)](https://pypi.org/project/pygformula)
+[![Modified from](https://github.com/CausalInference/pygformula/](https://github.com/CausalInference/pygformula/)
 [![Documentation Status](https://readthedocs.org/projects/pygformula/badge/?version=latest)](https://pygformula.readthedocs.io)
-[![Downloads](https://static.pepy.tech/badge/pygformula)](https://pepy.tech/project/pygformula)
 
-**Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán**
+
+**Authors: Sagar Nagaraj Simha**
+**Original Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán**
 
 
 ## Overview
 The pygformula package implements the non-iterative conditional expectation (NICE) estimator of the g-formula algorithm
 (Robins, 1986). The g-formula can estimate an outcome’s counterfactual mean or risk under hypothetical treatment strategies
-(interventions) when there is sufficient information on time-varying treatments and confounders.
+(interventions) when there is sufficient information on time-varying treatments and confounders. The package works with 
+treatment strategies of variable length.
 
 
 ### Features
@@ -22,6 +24,7 @@ The pygformula package implements the non-iterative conditional expectation (NIC
 * Incorporation of a priori knowledge of the data structure.
 * Censoring events.
 * Competing events.
+* Variable treatment length
 
 
 ## Requirements
@@ -46,7 +49,6 @@ The package requires python 3.8+ and these necessary dependencies:
 
 The online documentation is available at [pygformula documentation](https://pygformula.readthedocs.io).
 
-## Issues
+## Contact
 
-If you have any issues, please open an [issue](https://github.com/CausalInference/pygformula/issues) on github, we will 
-regularly check the questions. For any additional questions or comments, please email jing_li@hsph.harvard.edu.
+For any questions or comments, please email s.n.simha@amsterdamumc.nl.
