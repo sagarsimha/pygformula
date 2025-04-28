@@ -44,8 +44,6 @@ from ..utils.util import read_intervention_input, error_catch, keywords_check, s
 from ..comparisons import comparison_calculate
 from ..plot import plot_natural_course, plot_interventions
 
-from ..interventions import static
-
 
 class ParametricGformula:
     """
@@ -372,7 +370,6 @@ class ParametricGformula:
             self.ts_visit_names = None
 
         if self.covmodels is not None:
-            # This function prepares relevant column (names) of history variables for each covariate from model signatures.
             self.cov_hist = get_cov_hist_info(self.covnames, self.covmodels, self.covtypes, self.ymodel,
                                          self.compevent_model, self.censor_model, self.visit_covs, self.ts_visit_names)
         else:
@@ -396,15 +393,10 @@ class ParametricGformula:
                     ref_int=self.ref_int)
 
         if self.outcome_type == 'binary_eof' or self.outcome_type == 'continuous_eof':
-            #self.time_points = np.max(np.unique(self.obs_data[self.time_name])) + 1
-            pass
+            self.time_points = np.max(np.unique(self.obs_data[self.time_name])) + 1
 
         self.int_descript = ['Natural course'] + self.int_descript if self.int_descript is not None else ['Natural course']
         self.intervention_dicts.update({'Natural course': natural})
-
-        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-        print(self.intervention_dicts)
-        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 
         if self.covtypes is not None:
             if 'categorical time' in self.covtypes:
@@ -495,11 +487,6 @@ class ParametricGformula:
                 update_custom_history(self.obs_data, self.custom_histvars, self.custom_histories,
                                       self.time_name, t, self.id)
 
-        #print('#############')
-        #print(self.obs_data)
-        #self.obs_data.to_csv('pooled.csv', index=False)
-        #print('$$$$$$$$$$$$$')
-
     def fit(self):
 
         print('start fitting parametric model.')
@@ -509,7 +496,6 @@ class ParametricGformula:
         model_stderrs = {}
         model_vcovs = {}
         model_fits_summary = {}
-        all_model_fits = {}
         if self.covnames is not None:
             covariate_fits, bounds, rmses, cov_model_coeffs, cov_model_stderrs, cov_model_vcovs, cov_model_fits_summary = \
                 fit_covariate_model(covmodels=self.covmodels, covnames=self.covnames, covtypes=self.covtypes,
@@ -521,7 +507,6 @@ class ParametricGformula:
             model_stderrs.update(cov_model_stderrs)
             model_vcovs.update(cov_model_vcovs)
             model_fits_summary.update(cov_model_fits_summary)
-            all_model_fits.update(covariate_fits)
         else:
             covariate_fits = None
             bounds = None
@@ -537,7 +522,6 @@ class ParametricGformula:
         model_stderrs.update(ymodel_stderrs)
         model_vcovs.update(ymodel_vcovs)
         model_fits_summary.update(ymodel_fits_summary)
-        all_model_fits.update({'Y': outcome_fit})
 
         if self.competing:
             compevent_fit, comp_model_coeffs, comp_model_stderrs, comp_model_vcovs, comp_model_fits_summary = \
@@ -562,12 +546,10 @@ class ParametricGformula:
         else:
             censor_fit = None
 
-        # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
-        # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.
-        '''if self.n_simul != len(np.unique(self.obs_data[self.id])):
+        if self.n_simul != len(np.unique(self.obs_data[self.id])):
             data_list = dict(list(self.obs_data.groupby(self.id, group_keys=True)))
             ids = np.unique(self.obs_data[self.id])
-            new_ids = np.random.choice(ids, self.n_simul, replace=True) # replace = True for sampling with replacement. If #adm_id < #n_sim, replace=False will fail.
+            new_ids = np.random.choice(ids, self.n_simul, replace=True)
             new_df = []
             for index, new_id in enumerate(new_ids):
                 new_id_df = data_list[new_id].copy()
@@ -575,53 +557,7 @@ class ParametricGformula:
                 new_df.append(new_id_df)
             data = pd.concat(new_df, ignore_index=True)
         else:
-            data = self.obs_data'''
-
-        # Balance the population at 'L0' to be uniformly distributed w.r.t their LOS.
-        if self.n_simul != len(np.unique(self.obs_data[self.id])):
-            data_list = dict(list(self.obs_data.groupby(self.id, group_keys=True)))
-            ids = np.unique(self.obs_data[self.id])
-
-            # Step 1: Compute LOS (Length of Stay) for each id
-            los_per_id = self.obs_data.groupby(self.id)['t0'].max() + 1  # +1 since t0 starts at 0
-
-            # Step 2: Automatically split LOS into quantile-based bins
-            n_quantiles = 4  # you can adjust this (e.g., 4 = quartiles)
-            quantile_bins = pd.qcut(los_per_id, q=n_quantiles, labels=False, duplicates='drop')  # labels: 0, 1, 2, 3
-
-            # Step 3: Organize ids into quantile groups
-            los_strata = {}
-            for quantile_label in np.unique(quantile_bins):
-                los_strata[quantile_label] = los_per_id.index[quantile_bins == quantile_label].tolist()
-
-            # Step 4: Sample proportionally from each LOS quantile group
-            sampled_ids = []
-            n_per_stratum = self.n_simul // len(los_strata)
-
-            for label, id_list in los_strata.items():
-                if len(id_list) >= n_per_stratum:
-                    sampled = np.random.choice(id_list, n_per_stratum, replace=False)
-                else:
-                    sampled = np.random.choice(id_list, n_per_stratum, replace=True)  # allow replacement if few
-                sampled_ids.extend(sampled)
-
-            # Step 5: If mismatch due to rounding, fix it
-            if len(sampled_ids) > self.n_simul:
-                sampled_ids = np.random.choice(sampled_ids, self.n_simul, replace=False)
-
-            # Step 6: Rebuild new dataset
-            new_df = []
-            for index, new_id in enumerate(sampled_ids):
-                new_id_df = data_list[new_id].copy()
-                new_id_df[self.id] = index  # reset id
-                new_df.append(new_id_df)
-
-            data = pd.concat(new_df, ignore_index=True)
-
-        else:
             data = self.obs_data
-
-        #data.to_csv('before_simulating.csv', index=False)
 
         print('start simulating.')
         if self.parallel:
@@ -649,47 +585,26 @@ class ParametricGformula:
             )
         else:
             self.all_simulate_results = []
-
-            # for each intervention strategy
             for intervention_name in self.int_descript:
-                if intervention_name == "Natural course":
-                    intervention_function = self.intervention_dicts[intervention_name]
-                else:
-                    intervention_function = self.intervention_dicts[intervention_name][0][1]
-
-                print(intervention_name)#, intervention_function)
-
-                if intervention_function == static:
-                    sim_time_points = len(self.intervention_dicts[intervention_name][0][3])
-                else:
-                    sim_time_points = self.time_points
-
-                simulate_result = simulate(seed=self.simul_seed, time_points=sim_time_points, time_name=self.time_name,
-                                           id=self.id, covnames=self.covnames, basecovs=self.basecovs,
-                                           covmodels=self.covmodels, covtypes=self.covtypes, cov_hist=self.cov_hist,
-                                           covariate_fits=covariate_fits, rmses=rmses, bounds=bounds,
-                                           outcome_type=self.outcome_type,
-                                           obs_data=data,
-                                           intervention=self.intervention_dicts[intervention_name],
-
-                                           intervention_function=intervention_function,
-
-                                           custom_histvars=self.custom_histvars, custom_histories=self.custom_histories,
-                                           covpredict_custom=self.covpredict_custom,
-                                           ymodel_predict_custom=self.ymodel_predict_custom,
-                                           ymodel=self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
-                                           competing=self.competing, compevent_name=self.compevent_name,
-                                           compevent_fit=compevent_fit, compevent_model=self.compevent_model,
-                                           compevent_cens=self.compevent_cens,
-                                           trunc_params=self.trunc_params, visit_names=self.visit_names,
-                                           visit_covs=self.visit_covs, ts_visit_names=self.ts_visit_names,
-                                           max_visits=self.max_visits, time_thresholds=self.time_thresholds,
-                                           baselags=self.baselags, below_zero_indicator=self.below_zero_indicator,
-                                           restrictions=self.restrictions, yrestrictions=self.yrestrictions,
-                                           compevent_restrictions=self.compevent_restrictions,
-                                           sim_trunc=self.sim_trunc
-                                           )
-
+                simulate_result = simulate(seed=self.simul_seed, time_points=self.time_points, time_name=self.time_name,
+                                   id=self.id, covnames=self.covnames, basecovs=self.basecovs,
+                                   covmodels=self.covmodels,  covtypes=self.covtypes, cov_hist=self.cov_hist,
+                                   covariate_fits=covariate_fits, rmses=rmses, bounds=bounds, outcome_type=self.outcome_type,
+                                   obs_data=data, intervention=self.intervention_dicts[intervention_name],
+                                   custom_histvars = self.custom_histvars, custom_histories=self.custom_histories,
+                                   covpredict_custom = self.covpredict_custom, ymodel_predict_custom=self.ymodel_predict_custom,
+                                   ymodel = self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
+                                   competing=self.competing, compevent_name=self.compevent_name,
+                                   compevent_fit=compevent_fit, compevent_model=self.compevent_model,
+                                   compevent_cens=self.compevent_cens,
+                                   trunc_params=self.trunc_params, visit_names=self.visit_names,
+                                   visit_covs=self.visit_covs, ts_visit_names=self.ts_visit_names,
+                                   max_visits=self.max_visits, time_thresholds=self.time_thresholds,
+                                   baselags=self.baselags, below_zero_indicator=self.below_zero_indicator,
+                                   restrictions=self.restrictions, yrestrictions=self.yrestrictions,
+                                   compevent_restrictions=self.compevent_restrictions,
+                                   sim_trunc=self.sim_trunc
+                                   )
                 self.all_simulate_results.append(simulate_result)
 
         self.g_results = [res['g_result'] for res in self.all_simulate_results]
@@ -870,8 +785,7 @@ class ParametricGformula:
             'bootests': None if self.nsamples == 0 else self.bootests,
             'bootcoeffs': self.bootcoeffs,
             'bootstderrs': self.bootstderrs,
-            'bootvcovs': self.bootvcovs,
-            'all_model_fits': all_model_fits
+            'bootvcovs': self.bootvcovs
         }
 
         if self.save_results:

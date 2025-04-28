@@ -56,9 +56,6 @@ def get_cov_hist_info(covnames, covmodels, covtypes, ymodel, compevent_model=Non
         all_variables.extend(re.split('[~|+]', model.replace(' ', '')))
     all_variables.extend(re.split('[~|+]', ymodel.replace(' ', '')))
 
-    #print(all_variables)
-    #exit(0)
-
     if compevent_model is not None:
         all_variables.extend(re.split('[~|+]', compevent_model.replace(' ', '')))
     if censor_model is not None:
@@ -68,10 +65,8 @@ def get_cov_hist_info(covnames, covmodels, covtypes, ymodel, compevent_model=Non
         covnames = covnames + ts_visit_names
 
     cov_hist_infos = {}
-    #print(covnames)
     for k, cov in enumerate(covnames):
         cov_list = np.unique([str_cov for str_cov in all_variables if cov in str_cov])
-        #print(cov_list)
         if k < len(covtypes):
             if covtypes[k] == 'absorbing':
                 cov_list = np.append(cov_list, 'lag1_{0}'.format(cov))
@@ -113,8 +108,6 @@ def get_cov_hist_info(covnames, covmodels, covtypes, ymodel, compevent_model=Non
         cov_hist['lagavg'] = [lagavg_variables, lagavg_numbers]
         cov_hist_infos[cov] = cov_hist
 
-        #print(cov_hist)
-    #print(cov_hist_infos)
     return cov_hist_infos
 
 

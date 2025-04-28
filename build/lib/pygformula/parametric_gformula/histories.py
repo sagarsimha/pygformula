@@ -67,9 +67,6 @@ def update_precoded_history(pool, covnames, cov_hist, covtypes, time_name, id, b
 
         lagged_covs = cov_hist[cov]['lagged'][0]
         lagged_nums = cov_hist[cov]['lagged'][1]
-
-        #print('$$$$$$$$$$$$$$$$$$$')
-        #print(lagged_covs)
         if len(lagged_covs) > 0:  # create lag variable
             for i, lagged_cov in enumerate(lagged_covs):
                 if cov_type == 'categorical':
@@ -85,20 +82,9 @@ def update_precoded_history(pool, covnames, cov_hist, covtypes, time_name, id, b
                     if below_zero_indicator:
                         pool[lagged_cov] = np.array(pool.groupby([id])[cov].shift(lagged_nums[i]))
                     else:
-                        #print(pool.groupby(id).get_group(0)[cov])
-                        #print(pool.groupby(id)[cov].transform('first'))
-
                         fill_values = pool.groupby(id)[cov].transform('first') if baselags else 0
                         pool[lagged_cov] = np.where(pool[time_name] >= lagged_nums[i],
                                                     pool.groupby([id])[cov].shift(lagged_nums[i]), fill_values)
-
-                        #print(pool[time_name])
-                        #print(lagged_nums[i])
-                        #print(pool[lagged_cov])
-                        #print('###################')
-
-        #import sys
-        #sys.exit()
 
         if len(cov_hist[cov]['cumavg']) > 0:  # create cumavg variable
             pool['_'.join(['cumavg', str(cov)])] = np.array(pool.groupby([id])[cov].expanding().mean())

@@ -106,7 +106,6 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
     sub_data = obs_data[obs_data[time_name] > 0]
 
     for k, cov in enumerate(covnames):
-        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', cov)
         if covmodels[k] != 'NA':
             if visit_names and cov in visit_names:
                 max_visit = max_visits[visit_names.index(cov)]
@@ -141,14 +140,12 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_fits_summary[cov] = fit.summary()
 
             elif covtypes[k] == 'normal':
+                print(fit_data)
+                exit(0)
                 min_cov = fit_data[cov].min()
                 max_cov = fit_data[cov].max()
                 bound = [min_cov, max_cov]
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Gaussian()).fit()
-                #print(fit_data)
-                #print(fit.predict())
-                #print(len(fit.predict()), len(fit_data[cov]))
-                #exit(0)
                 rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
                 bounds[cov] = bound
                 covariate_fits[cov] = fit
@@ -243,9 +240,6 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                 cov_fit = fit_func(covmodel=covmodels[k], covname=covnames[k], fit_data=fit_data)
                 covariate_fits[cov] = cov_fit
 
-    #print('check covariate_fits structure')
-    #print(type(covariate_fits))
-    #print(covariate_fits)
     return covariate_fits, bounds, rmses, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 

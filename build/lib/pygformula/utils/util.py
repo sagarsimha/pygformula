@@ -168,10 +168,9 @@ def error_catch(obs_data, id, time_points, interventions, intervention_dicts, in
             raise ValueError('Number of simulated time points should be set to a value within the observed follow-up the data.')
 
     if outcome_type == 'continuous_eof' or outcome_type == 'binary_eof':
-        #if time_points != np.max(np.unique(obs_data[time_name])) + 1:
-        #    raise ValueError('For end of follow up outcomes, the mean is calculated at the last time point in obs_data.'
-        #                     'The value of argument time_points should be the same length of the data record for each individual plus 1.')
-        pass
+        if time_points != np.max(np.unique(obs_data[time_name])) + 1:
+            raise ValueError('For end of follow up outcomes, the mean is calculated at the last time point in obs_data.'
+                             'The value of argument time_points should be the same length of the data record for each individual plus 1.')
 
     if censor_name is None and censor_model is not None:
         raise ValueError('The censor_name should be specified when there is a censor model.')
@@ -325,39 +324,15 @@ def get_output(ref_int, int_descript, censor, obs_res, g_results, time_points, c
     """
 
     if outcome_type == 'survival':
-        '''all_simulate_results = np.array(g_results)
+        all_simulate_results = np.array(g_results)
         all_ref_result = all_simulate_results[ref_int]
         all_result_diff = all_simulate_results - all_ref_result
         all_result_ratio = all_simulate_results / all_ref_result
 
         simulate_results = all_simulate_results[:, time_points - 1]
         result_diff = all_result_diff[:, time_points - 1]
-        result_ratio = all_result_ratio[:, time_points - 1]'''
+        result_ratio = all_result_ratio[:, time_points - 1]
 
-        ############################## Changed to handle results of dynamic treatment length ###############
-
-        # Convert g_results to a list of NumPy arrays (handling variable-length sequences)
-        all_simulate_results = np.array([np.array(arr) for arr in g_results])
-
-        # Convert reference result to a NumPy array
-        all_ref_result = np.array(all_simulate_results[ref_int])
-
-        # Compute difference and ratio dynamically for each variable-length array
-        all_result_diff = np.array([np.array(sim_res - all_ref_result[: len(sim_res)]) for sim_res in all_simulate_results])
-        all_result_ratio = np.array([np.array(sim_res / all_ref_result[: len(sim_res)]) for sim_res in all_simulate_results])
-
-        # Extract the last available time point for each simulation and convert to NumPy arrays
-        simulate_results = np.array([sim_res[-1] for sim_res in all_simulate_results])
-        result_diff = np.array([diff[-1] for diff in all_result_diff])
-        result_ratio = np.array([ratio[-1] for ratio in all_result_ratio])
-
-        print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-        print(simulate_results)
-        print(result_diff)
-        print(result_ratio)
-        print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-        #####################################################################################################
-        
         if nsamples == 0:
             # save nonparametric and parametric risks at all the time points to a data table
             table = pd.DataFrame(
@@ -527,9 +502,6 @@ def get_output(ref_int, int_descript, censor, obs_res, g_results, time_points, c
     elif outcome_type == 'binary_eof' or outcome_type == 'continuous_eof':
         simulate_results = np.array(g_results)
         ref_result = simulate_results[ref_int]
-        print('$$$$$$$$$$$$$$$$$$$$$$$##########')
-        print(simulate_results)
-        print('$$$$$$$$$$$$$$$$$$$$$$$##########')
         result_diff = simulate_results - ref_result
         result_ratio = simulate_results / ref_result
 

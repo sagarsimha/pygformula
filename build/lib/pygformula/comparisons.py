@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 
 def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtypes, outcome_name, outcome_type,
@@ -91,11 +90,11 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
     if censor:
         # for non-parametric cov means and risks
         censor_pre = censor_fit.predict(obs_data)
-        censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
+        censor_p0_inv = 1 / (1 - censor_pre)
         obs_data['censor_p0_inv'] = censor_p0_inv
-        censor_inv_cum = obs_data.groupby([id])['censor_p0_inv'].cumprod() #weight for a patient not censored up to each time point. The product assigns higher weight to patients at higher time points. They are the closest match to those being censored. Hence, higher weights.
+        censor_inv_cum = obs_data.groupby([id])['censor_p0_inv'].cumprod()
         obs_data['censor_inv_cum'] = censor_inv_cum
-        w_censor = censor_inv_cum * (1 - obs_data[censor_name]) # w=0 for censored people, w is finite for people who survived
+        w_censor = censor_inv_cum * (1 - obs_data[censor_name])
         if outcome_type == 'survival' and compevent_cens:
             comprisk_p0_inv = 1 / (1 - compevent_fit.predict(obs_data))
             obs_data['comprisk_p0_inv'] = comprisk_p0_inv
@@ -112,14 +111,12 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         if ipw_cutoff_value:
             obs_data.loc[obs_data['IP_weight'] > ipw_cutoff_value, 'IP_weight'] = ipw_cutoff_value
 
-        obs_data['IP_weight_cov'] = np.where(obs_data[time_name] > 0, obs_data['IP_weight'].shift(1), 1) #Not understood the point of this yet.
+        obs_data['IP_weight_cov'] = np.where(obs_data[time_name] > 0, obs_data['IP_weight'].shift(1), 1)
 
         obs_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                print(covname)
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
+                if covtypes[k] == 'categorical':
                     all_levels = np.unique(obs_data[covname])
                     all_levels_obs_prob = []
                     for level in all_levels:
@@ -128,10 +125,10 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
                         all_levels_obs_prob.append(obs_level_prob)
                 else:
                     cov_mean = obs_data[obs_data[covname].notna()].groupby(time_name).apply(lambda g: (g['IP_weight_cov'] * g[covname]).mean() / g['IP_weight_cov'].mean()).tolist()[:time_points]
-                    obs_means[covname] = cov_mean # observed mean of cov had no one dropped out.
+                    obs_means[covname] = cov_mean
 
         if outcome_type == 'binary_eof' or outcome_type == 'continuous_eof':
-            obs_data_last_record = obs_data.loc[obs_data[outcome_name].notna()]
+            obs_data_last_record =  obs_data.loc[obs_data[outcome_name].notna()]
             obs_mean_Ey = (obs_data_last_record[outcome_name] * obs_data_last_record['IP_weight']).mean() / obs_data_last_record['IP_weight'].mean()
 
         if outcome_type == 'survival':
@@ -174,9 +171,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         est_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-                print(covname)
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
+                if covtypes[k] == 'categorical':
                     all_levels = np.unique(obs_data[covname])
                     all_levels_est_prob_mean = []
                     for level in all_levels:
@@ -196,8 +191,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                print('##########', covname)
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
+                if covtypes[k] == 'categorical':
                     all_levels = np.unique(obs_data[covname])
                     all_levels_obs_prob_mean = []
                     for level in all_levels:
@@ -209,8 +203,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
                     obs_means[covname] = obs_mean
 
         if outcome_type == 'binary_eof' or outcome_type == 'continuous_eof':
-            #obs_mean_Ey = obs_data.loc[obs_data[time_name] == time_points - 1][outcome_name].mean()
-            obs_mean_Ey = obs_data.groupby(id).tail(1)[outcome_name].mean()
+            obs_mean_Ey = obs_data.loc[obs_data[time_name] == time_points - 1][outcome_name].mean()
 
         if outcome_type == 'survival':
             if competing and not compevent_cens:
@@ -248,7 +241,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         est_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
+                if covtypes[k] == 'categorical':
                     all_levels = np.unique(obs_data[covname])
                     all_levels_est_prob_mean = []
                     for level in all_levels:
