@@ -129,6 +129,12 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                        mask = fit_data[cond_var].apply(condition)
                        fit_data = fit_data[mask]
 
+            # exclude rows that contains NA values of the predictors in fit_data
+            predictors = covmodels[k].split('~')[1].strip().split(' + ')
+            all_vars = predictors + [cov]
+            all_vars = [item[2:-1] if item.startswith('C(') and item.endswith(')') else item for item in all_vars]
+            fit_data = fit_data[all_vars].dropna()
+
             if covtypes[k] == 'binary':
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Binomial()).fit()
                 rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
@@ -332,7 +338,6 @@ def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name,
     if outcome_type == 'survival' or outcome_type == 'binary_eof':
         if ymodel_fit_custom is not None:
             outcome_fit = ymodel_fit_custom(ymodel, fit_data)
-            print('outcome_fit', outcome_fit)
         else:
             outcome_fit = smf.glm(ymodel, fit_data, family=sm.families.Binomial()).fit()
     elif outcome_type == 'continuous_eof':
