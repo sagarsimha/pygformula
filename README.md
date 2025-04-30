@@ -4,7 +4,7 @@
 
 Modified original package pygformula at https://github.com/CausalInference/pygformula/
 
-**Original Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán**
+Original Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán
 
 
 ## Overview
