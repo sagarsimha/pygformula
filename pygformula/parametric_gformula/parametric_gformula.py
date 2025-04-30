@@ -564,10 +564,10 @@ class ParametricGformula:
 
         # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
         # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.
-        '''if self.n_simul != len(np.unique(self.obs_data[self.id])):
+        if self.n_simul != len(np.unique(self.obs_data[self.id])):
             data_list = dict(list(self.obs_data.groupby(self.id, group_keys=True)))
             ids = np.unique(self.obs_data[self.id])
-            new_ids = np.random.choice(ids, self.n_simul, replace=True) # replace = True for sampling with replacement. If #adm_id < #n_sim, replace=False will fail.
+            new_ids = np.random.choice(ids, self.n_simul, replace=False) # replace = True for sampling with replacement. If #adm_id < #n_sim, replace=False will fail.
             new_df = []
             for index, new_id in enumerate(new_ids):
                 new_id_df = data_list[new_id].copy()
@@ -575,10 +575,10 @@ class ParametricGformula:
                 new_df.append(new_id_df)
             data = pd.concat(new_df, ignore_index=True)
         else:
-            data = self.obs_data'''
+            data = self.obs_data
 
         # Balance the population at 'L0' to be uniformly distributed w.r.t their LOS.
-        if self.n_simul != len(np.unique(self.obs_data[self.id])):
+        '''if self.n_simul != len(np.unique(self.obs_data[self.id])):
             data_list = dict(list(self.obs_data.groupby(self.id, group_keys=True)))
             ids = np.unique(self.obs_data[self.id])
 
@@ -619,7 +619,7 @@ class ParametricGformula:
             data = pd.concat(new_df, ignore_index=True)
 
         else:
-            data = self.obs_data
+            data = self.obs_data'''
 
         #data.to_csv('before_simulating.csv', index=False)
 
