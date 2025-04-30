@@ -2,7 +2,7 @@
 
 **Authors: Sagar Nagaraj Simha, Ameen Abu-Hanna, Giovanni Cinà**
 
-Modified original package pygformula at https://github.com/CausalInference/pygformula/
+Modified original package **pygformula** at https://github.com/CausalInference/pygformula/
 
 Original Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán
 
