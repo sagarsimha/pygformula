@@ -1,10 +1,8 @@
 # pygformulaICU: a python implementation of the parametric g-formula for dynamic treatment lengths typical in ICU care
 
-[![Modified from](https://github.com/CausalInference/pygformula/](https://github.com/CausalInference/pygformula/)
-[![Documentation Status](https://readthedocs.org/projects/pygformula/badge/?version=latest)](https://pygformula.readthedocs.io)
+[Mofied from original package](pygformula](https://github.com/CausalInference/pygformula/)
 
-
-**Authors: Sagar Nagaraj Simha**
+**Authors: Sagar Nagaraj Simha, Ameen Abu-Hanna, Giovanni Cinà**
 
 **Original Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán**
 
