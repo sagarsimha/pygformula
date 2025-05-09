@@ -706,7 +706,7 @@ class ParametricGformula:
         self.natural_course_pool = self.pool_dict['Natural course']
 
         # compute non-parametric and parametric covariates means and risks
-        self.obs_means, self.est_means, self.obs_res, self.IP_weights = comparison_calculate(
+        self.obs_means, self.est_means, self.obs_res, self.IP_weights, obs_data_debug = comparison_calculate(
             obs_data=self.obs_data[self.obs_data[self.time_name] >= 0], time_name=self.time_name,
             time_points=self.time_points, id=self.id, covnames=self.covnames, covtypes=self.covtypes,
             outcome_name=self.outcome_name, outcome_type=self.outcome_type, nc_pool=self.natural_course_pool,
@@ -871,7 +871,8 @@ class ParametricGformula:
             'bootcoeffs': self.bootcoeffs,
             'bootstderrs': self.bootstderrs,
             'bootvcovs': self.bootvcovs,
-            'all_model_fits': all_model_fits
+            'all_model_fits': all_model_fits,
+            'obs_data_debug' : obs_data_debug
         }
 
         if self.save_results:

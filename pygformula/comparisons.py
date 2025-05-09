@@ -90,12 +90,28 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
     """
     if censor:
         # for non-parametric cov means and risks
-        censor_pre = censor_fit.predict(obs_data)
+        '''censor_pre = censor_fit.predict(obs_data)
         censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
         obs_data['censor_p0_inv'] = censor_p0_inv
         censor_inv_cum = obs_data.groupby([id])['censor_p0_inv'].cumprod() #weight for a patient not censored up to each time point. The product assigns higher weight to patients at higher time points. They are the closest match to those being censored. Hence, higher weights.
         obs_data['censor_inv_cum'] = censor_inv_cum
-        w_censor = censor_inv_cum * (1 - obs_data[censor_name]) # w=0 for censored people, w is finite for people who survived
+        w_censor = censor_inv_cum * (1 - obs_data[censor_name])''' # w=0 for censored people, w is finite for people who survived
+
+        # Predicted conditional probability of censoring = 1
+        censor_pre = censor_fit.predict(obs_data)  # P(censor = 1 | history)
+        p_censor0 = 1 - censor_pre  # P(censor = 0 | history)
+
+        # Add to dataframe
+        obs_data['p_censor0_inv'] = 1 / p_censor0  # Denominator (conditional survival prob)
+        obs_data['numerator_censor'] = 1 - obs_data[censor_name].mean()  # Marginal P(censor = 0)
+
+        # Cumulative products over time for each patient
+        denominator_cum = obs_data.groupby(id)['p_censor0_inv'].cumprod()
+        numerator_cum = obs_data.groupby(id)['numerator_censor'].cumprod()
+
+        # Stabilized IPC weights
+        w_censor = numerator_cum / denominator_cum
+
         if outcome_type == 'survival' and compevent_cens:
             comprisk_p0_inv = 1 / (1 - compevent_fit.predict(obs_data))
             obs_data['comprisk_p0_inv'] = comprisk_p0_inv
@@ -267,5 +283,5 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
     obs_res = obs_risk if outcome_type == 'survival' else obs_mean_Ey
     IP_weights = obs_data['IP_weight'].tolist() if censor else None
 
-    return obs_means, est_means, obs_res, IP_weights
+    return obs_means, est_means, obs_res, IP_weights, obs_data
 
