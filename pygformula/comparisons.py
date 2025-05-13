@@ -97,20 +97,20 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_data['censor_inv_cum'] = censor_inv_cum
         w_censor = censor_inv_cum * (1 - obs_data[censor_name])''' # w=0 for censored people, w is finite for people who survived
 
-        # Predicted conditional probability of censoring = 1
-        censor_pre = censor_fit.predict(obs_data)  # P(censor = 1 | history)
-        p_censor0 = 1 - censor_pre  # P(censor = 0 | history)
+        # Stabilized IP weighting
+        # predict conditional survival probability
+        obs_data['p_survive_cond'] = 1 - censor_fit.predict(obs_data)
 
-        # Add to dataframe
-        obs_data['p_censor0_inv'] = 1 / p_censor0  # Denominator (conditional survival prob)
-        obs_data['numerator_censor'] = 1 - obs_data[censor_name].mean()  # Marginal P(censor = 0)
+        # Compute marginal (average) survival probability at each t
+        p_survive_marg = obs_data.groupby(time_name)[censor_name].apply(lambda x: 1 - x.mean())
+        obs_data = obs_data.merge(p_survive_marg.rename('p_survive_marg'), left_on=time_name, right_index=True)
 
-        # Cumulative products over time for each patient
-        denominator_cum = obs_data.groupby(id)['p_censor0_inv'].cumprod()
-        numerator_cum = obs_data.groupby(id)['numerator_censor'].cumprod()
+        # Cumulative product - conditional survival and marginal survival probabilities
+        obs_data['numerator'] = obs_data.groupby(id)['p_survive_marg'].cumprod()
+        obs_data['denominator'] = obs_data.groupby(id)['p_survive_cond'].cumprod()
 
-        # Stabilized IPC weights
-        w_censor = numerator_cum / denominator_cum
+        # Stabilized weight
+        w_censor = (obs_data['numerator'] / obs_data['denominator']) * (1 - obs_data[censor_name])
 
         if outcome_type == 'survival' and compevent_cens:
             comprisk_p0_inv = 1 / (1 - compevent_fit.predict(obs_data))
