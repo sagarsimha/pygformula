@@ -207,15 +207,11 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
         column_names.extend(ts_visit_names)
     pool = obs_data.loc[:, column_names]
 
-    #print('***********************66*****************************************')
-    #print(pool)
-    #print('****************************************************************')
-    ######################### Changes for NC ##################################################
-    #print(intervention)
 
+    #Changes for NC
     #if intervention == natural:
     if intervention_function != static:
-        final_df_list = [] # Collect dataframes which has A=1 at t=0, t=1, t=2 and so on.
+        final_df_list = [] # Collect dataframes of ids which has A=1 at t=0, t=1, t=2 and so on.
     ###########################################################################################
 
     for t in range(0, time_points):
@@ -227,7 +223,6 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t) # does intervention and new_df is updated within
 
             # Changed for NC. Compulsory discharge at "time_points"
-            #if (intervention == natural) and (t == time_points-1):
             if (intervention_function != static) and (t == time_points - 1):
                 new_df.loc[new_df[time_name] == t, 'A'] = 1
 
@@ -289,12 +284,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             pool = pd.concat([pool[pool[time_name] < t], new_df])
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
-            ################ Changes for NC to stop simulation once A=1 ###########################
-            #print('*******************************************************************')
-            #print(pool.A.mean())
-            #print('*******************************************************************')
-
-            #if intervention == natural:
+            # Changes for NC to stop simulation once A=1
             if intervention_function != static:
                 ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
 
@@ -310,25 +300,9 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
                 final_df_list.append(pool_with_A1_t0)  # store them in global list for concatenation at the end
 
-                #print('************************t=0*******************************************')
-                #print(pool_with_A1_t0)
-                #print('************************t=0*******************************************')
-            ########################################################################################
-
         else:
             new_df = pool[pool[time_name] == t-1].copy()
-
-            #print('&&&')
-            #print(new_df)
-
             new_df[time_name] = t
-
-            #print('$$$')
-            #print('t is', t)
-            #print(new_df)
-
-            #import sys
-            #sys.exit()
 
             if covtypes is not None:
                 if 'categorical time' in covtypes:
@@ -338,22 +312,12 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             pool = pd.concat([pool, new_df])
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
-            #print('$$$')
-            #print(pool)
-
             if covnames is not None:
                 update_precoded_history(pool, covnames, cov_hist, covtypes, time_name, id, below_zero_indicator,
                                       baselags, ts_visit_names)
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
                 new_df = pool[pool[time_name] == t].copy()
-
-                #if t==2:
-                    #print('&&&')
-                    #print('t is', t)
-                    #print(new_df)
-                    #print(covnames)
-                    #exit(0)
 
                 for k, cov in enumerate(covnames):
                     if covmodels[k] != 'NA':
@@ -388,8 +352,10 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
                         elif covtypes[k] == 'categorical':
                             predict_probs = covariate_fits[cov].predict(new_df)
-                            predict_index = np.asarray(predict_probs).argmax(1)
-                            prediction = list(map(lambda x: pd.Categorical(obs_data[cov]).categories[x], predict_index))
+                            predict_probs = np.asarray(predict_probs)
+                            categories = pd.Categorical(obs_data[cov]).categories
+                            predict_index = [np.random.choice(len(probs), p=probs) for probs in predict_probs]
+                            prediction = [categories[i] for i in predict_index]
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'bounded normal':
@@ -469,19 +435,11 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                         update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
                     new_df = pool[pool[time_name] == t].copy()
 
-            #print("@@@")
-            #print(new_df)
-
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t)
 
             # Changed for NC. Compulsory discharge at "time_points"
-            #if (intervention==natural) and (t == time_points - 1):
             if (intervention_function != static) and (t == time_points - 1):
                 new_df.loc[new_df[time_name] == t, 'A'] = 1
-
-            #print("!!!")
-            #print(new_df)
-            #exit(0)
 
             pool.loc[pool[time_name] == t] = new_df
             if covnames is not None:
@@ -529,8 +487,8 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 new_df['prob0'] = 1 - new_df['prob1']
                 new_df[outcome_name] = new_df['prob1'].apply(binorm_sample)
 
-            #if intervention != natural: # Changes for NC
-            if intervention_function == static:  # Changes for NC
+            # Changes for NC
+            if intervention_function == static:
                 if outcome_type == 'binary_eof':
                     new_df['Py'] = 'NA' if t < time_points - 1 else pre_y
                 if outcome_type == 'continuous_eof':
@@ -541,8 +499,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
             pool.loc[pool[time_name] == t] = new_df
 
-            ######################## Changes for NC to stop simulation once A=1 at any t ############################
-            #if intervention == natural:
+            # Changes for NC to stop simulation once A=1 at any t
             if intervention_function != static:
                 ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()  # ids with A=1 at t
 
@@ -560,15 +517,8 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
                 final_df_list.append(pool_with_A1_t)  # store them in global list for concatenation at the end
 
-                #print('************************t*******************************************')
-                #print(t)
-                #print(pool_with_A1_t)
-                #print('************************t*******************************************')
-            ########################################################################################
-
-    ############# Changes for NC ################################
+    # Changes for NC and dynamic
     # Concatenate all dataframes at different t into a single DataFrame pool
-    #if intervention == natural:
     if intervention_function != static:
         final_df_list.append(pool)
         pool = pd.concat(final_df_list, ignore_index=True)
@@ -577,11 +527,6 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
     #############################################################
 
     pool = pool[pool[time_name] >= 0]
-    #if intervention == natural:
-        #print("!!!")
-        #print(pool)
-    #pool.to_csv('simulated'.join(random.choices(string.ascii_letters + string.digits, k=10))+".csv", index=False)
-    #exit(0)
 
     if outcome_type == 'survival':
         if competing and not compevent_cens:

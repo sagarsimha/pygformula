@@ -657,8 +657,6 @@ class ParametricGformula:
                 else:
                     intervention_function = self.intervention_dicts[intervention_name][0][1]
 
-                print(intervention_name)#, intervention_function)
-
                 if intervention_function == static:
                     sim_time_points = len(self.intervention_dicts[intervention_name][0][3])
                 else:
@@ -671,9 +669,7 @@ class ParametricGformula:
                                            outcome_type=self.outcome_type,
                                            obs_data=data,
                                            intervention=self.intervention_dicts[intervention_name],
-
                                            intervention_function=intervention_function,
-
                                            custom_histvars=self.custom_histvars, custom_histories=self.custom_histories,
                                            covpredict_custom=self.covpredict_custom,
                                            ymodel_predict_custom=self.ymodel_predict_custom,
