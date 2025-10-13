@@ -565,7 +565,7 @@ class ParametricGformula:
         # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
         # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.
         if self.n_simul != len(np.unique(self.obs_data[self.id])):
-            data_list = dict(list(self.obs_data.groupby(self.id, group_keys=True)))
+            data_list = dict(list(self.obs_data.groupby(self.id, group_keys=False)))
             ids = np.unique(self.obs_data[self.id])
             new_ids = np.random.choice(ids, self.n_simul, replace=False) # replace = True for sampling with replacement. If #adm_id < #n_sim, replace=False will fail.
             new_df = []
