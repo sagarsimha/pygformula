@@ -140,10 +140,10 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
                     all_levels_obs_prob = []
                     for level in all_levels:
                         obs_level_prob = obs_data[obs_data[covname].notna()].groupby([time_name]).apply(lambda g:
-                                        (((g[covname] == level) * g['IP_weight_cov']).mean()) /g['IP_weight_cov'].mean()).tolist()[:time_points]
+                                        (((g[covname] == level) * g['IP_weight_cov']).mean()) /g['IP_weight_cov'].mean(), include_groups=False).tolist()[:time_points]
                         all_levels_obs_prob.append(obs_level_prob)
                 else:
-                    cov_mean = obs_data[obs_data[covname].notna()].groupby(time_name).apply(lambda g: (g['IP_weight_cov'] * g[covname]).mean() / g['IP_weight_cov'].mean()).tolist()[:time_points]
+                    cov_mean = obs_data[obs_data[covname].notna()].groupby(time_name).apply(lambda g: (g['IP_weight_cov'] * g[covname]).mean() / g['IP_weight_cov'].mean(), include_groups=False).tolist()[:time_points]
                     obs_means[covname] = cov_mean # observed mean of cov had no one dropped out.
 
         if outcome_type == 'binary_eof' or outcome_type == 'continuous_eof':
@@ -197,12 +197,12 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
                     all_levels_est_prob_mean = []
                     for level in all_levels:
                         est_level_prob = nc_pool[nc_pool[covname].notna()].groupby([time_name]).apply(
-                            lambda g: ((g[covname] == level) * g['w_cov']).mean() / g['w_cov'].mean()).tolist()[:time_points]
+                            lambda g: ((g[covname] == level) * g['w_cov']).mean() / g['w_cov'].mean(), include_groups=False).tolist()[:time_points]
                         all_levels_est_prob_mean.append(est_level_prob)
                     est_means[covname] = all_levels_est_prob_mean
                 else:
                     cov_mean = nc_pool[nc_pool[covname].notna()].groupby(time_name).apply(
-                        lambda g: (g['w_cov'] * g[covname]).mean() / g['w_cov'].mean()).tolist()[:time_points]
+                        lambda g: (g['w_cov'] * g[covname]).mean() / g['w_cov'].mean(), include_groups=False).tolist()[:time_points]
                     est_means[covname] = cov_mean
         if outcome_type == 'survival':
             est_means['risk'] = nc_risk
