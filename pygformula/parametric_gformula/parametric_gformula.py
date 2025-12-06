@@ -391,7 +391,7 @@ class ParametricGformula:
                     compevent_name=self.compevent_name, compevent_model=self.compevent_model,
                     intcomp=self.intcomp, time_thresholds=self.time_thresholds,
                     censor_name=self.censor_name, censor_model=self.censor_model,
-                    ipw_cutoff_quantile=self.ipw_cutoff_quantile, ipw_cutoff_value=self.ipw_cutoff_quantile,
+                    ipw_cutoff_quantile=self.ipw_cutoff_quantile, ipw_cutoff_value=self.ipw_cutoff_value,
                     outcome_type=self.outcome_type, trunc_params=self.trunc_params, basecovs=self.basecovs,
                     ref_int=self.ref_int)
 

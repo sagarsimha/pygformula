@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pygformula"
+version = "1.2.0"
+description = "A python implementation of the parametric g-formula"
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["causal inference", "g-formula", "observational studies", "longitudinal data"]
+requires-python = ">=3.8"
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13"
+]
+
+authors = [
+    {name = "Jing Li", email = "jing_li@hsph.harvard.edu"},
+    {name = "Sophia Rein", email = "srein@hsph.harvard.edu"},
+    {name = "Sean McGrath", email = "sean.mcgrath@yale.edu"},
+    {name = "Roger Logan", email = "rwlogan@hsph.harvard.edu"},
+    {name = "Ryan O’Dea", email = "ryan.odea@psi.ch"},
+    {name = "Miguel Hernan", email = "mhernan@hsph.harvard.edu"},
+]
+
+maintainers = [
+    {name = "Jing Li", email = "jing_li@hsph.harvard.edu"},
+]
+
+dependencies = [
+    'joblib>=1.2',
+    'lifelines>=0.27',
+    'matplotlib>=3.5',
+    'numpy>=1.22',
+    'pandas>=1.5',
+    'prettytable>=3.10',
+    'pytruncreg>=0.1',
+    'scipy>=1.10',
+    'seaborn>=0.11',
+    'statsmodels>=0.14',
+    'tqdm>=4.64',
+    'PyQt5>=5.15'
+]
+
+[project.urls]
+Homepage = "https://github.com/CausalInference/pygformula"
+Repository = "https://github.com/CausalInference/pygformula"
+Documentation = "https://pygformula.readthedocs.io"
+"Bug Tracker" = "https://github.com/CausalInference/pygformula/issues"
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pygformula*"]
+
+
+
+
+

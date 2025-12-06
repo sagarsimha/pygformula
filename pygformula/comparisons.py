@@ -217,7 +217,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
                     all_levels = np.unique(obs_data[covname])
                     all_levels_obs_prob_mean = []
                     for level in all_levels:
-                        obs_level_prob = obs_data.groupby([time_name]).apply(lambda g: ((g[covname] == level)).mean()).tolist()[:time_points]
+                        obs_level_prob = obs_data.groupby([time_name]).apply(lambda g: ((g[covname] == level)).mean(), include_groups=False).tolist()[:time_points]
                         all_levels_obs_prob_mean.append(obs_level_prob)
                     obs_means[covname] = all_levels_obs_prob_mean
                 else:
@@ -269,13 +269,13 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
                     all_levels_est_prob_mean = []
                     for level in all_levels:
                         est_level_prob = nc_pool[nc_pool[covname].notna()].groupby([time_name]).apply(
-                            lambda g: ((g[covname] == level) * g['w_cov']).mean() / g['w_cov'].mean()).tolist()[:time_points]
+                            lambda g: ((g[covname] == level) * g['w_cov']).mean() / g['w_cov'].mean(), include_groups=False).tolist()[:time_points]
                         all_levels_est_prob_mean.append(est_level_prob)
                     est_means[covname] = all_levels_est_prob_mean
                 else:
                     est_mean = nc_pool[nc_pool[covname].notna()].groupby(time_name).apply(lambda g:
                                                                               (g['w_cov'] * g[covname]).mean()
-                                                                             / g['w_cov'].mean()).tolist()[:time_points]
+                                                                             / g['w_cov'].mean(), include_groups=False).tolist()[:time_points]
                     est_means[covname] = est_mean
         if outcome_type == 'survival':
             est_means['risk'] = nc_risk

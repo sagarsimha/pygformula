@@ -182,8 +182,8 @@ def error_catch(obs_data, id, time_points, interventions, intervention_dicts, in
         if ipw_cutoff_quantile < 0 or ipw_cutoff_quantile > 1:
             raise ValueError('The ipw_cutoff_quantile should be a value between 0 and 1.')
     if ipw_cutoff_value:
-        if ipw_cutoff_value < 0 or ipw_cutoff_value > 1:
-            raise ValueError('The ipw_cutoff_value should be a value between 0 and 1.')
+        if ipw_cutoff_value <= 0:
+            raise ValueError('The ipw_cutoff_value should be greater than 0.')
 
     if compevent_name is None and compevent_model is not None:
         raise ValueError('The compevent_name should be specified when there is a competing model.')
