@@ -275,14 +275,13 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
                                        obs_data=resample_data,
                                        
                                        intervention=intervention_dicts[intervention_name],
-                                       
                                        intervention_function=(
                                                     intervention_dicts[intervention_name]
                                                     if intervention_name == "Natural course"
                                                     else intervention_dicts[intervention_name][0][1]
                                                 ),
                                        
-                                       
+            
                                        custom_histvars = custom_histvars, custom_histories=custom_histories,
                                        covpredict_custom=covpredict_custom, ymodel=ymodel,
                                        ymodel_predict_custom=ymodel_predict_custom,
