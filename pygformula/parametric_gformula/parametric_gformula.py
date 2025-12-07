@@ -503,7 +503,7 @@ class ParametricGformula:
     def fit(self):
 
         print('start fitting parametric model.')
-        print('check...')
+        #print('check...')
 
         model_coeffs = {}
         model_stderrs = {}

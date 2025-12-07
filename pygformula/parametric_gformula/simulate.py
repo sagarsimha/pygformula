@@ -215,7 +215,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
     ###########################################################################################
 
     for t in range(0, time_points):
-        print('Time point', t)
+        #print('Time point', t)
         if t == 0:
             pool = pool[pool[time_name] <= t].copy() # pool all data until t=0
             new_df = pool[pool[time_name] == t] # pick only t=0

@@ -133,8 +133,8 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                print(covname)
+                #print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+                #print(covname)
                 if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
                     all_levels = np.unique(obs_data[covname])
                     all_levels_obs_prob = []
@@ -190,8 +190,8 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         est_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-                print(covname)
+                #print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+                #print(covname)
                 if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
                     all_levels = np.unique(obs_data[covname])
                     all_levels_est_prob_mean = []
@@ -212,7 +212,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                print('##########', covname)
+                #print('##########', covname)
                 if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
                     all_levels = np.unique(obs_data[covname])
                     all_levels_obs_prob_mean = []
