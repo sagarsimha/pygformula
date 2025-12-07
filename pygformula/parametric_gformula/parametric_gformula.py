@@ -627,11 +627,28 @@ class ParametricGformula:
         if self.parallel:
             self.all_simulate_results = (
                 Parallel(n_jobs=self.ncores)
-                (delayed(simulate)(seed=self.simul_seed, time_points=self.time_points, time_name=self.time_name,
+                (delayed(simulate)(seed=self.simul_seed, 
+                                   time_points=(
+                                        # Determine sim_time_points for each intervention
+                                        len(self.intervention_dicts[intervention_name][0][3])
+                                        if (
+                                            intervention_name != "Natural course"
+                                            and (
+                                                self.intervention_dicts[intervention_name][0][1] == static
+                                            )
+                                        )
+                                        else self.time_points
+                                    ),
+                                   time_name=self.time_name,
                                    id=self.id, covnames=self.covnames, basecovs=self.basecovs,
                                    covmodels=self.covmodels,  covtypes=self.covtypes, cov_hist=self.cov_hist,
                                    covariate_fits=covariate_fits, rmses=rmses, bounds=bounds, outcome_type=self.outcome_type,
                                    obs_data=data, intervention=self.intervention_dicts[intervention_name],
+                                   intervention_function=(
+                                        self.intervention_dicts[intervention_name]
+                                        if intervention_name == "Natural course"
+                                        else self.intervention_dicts[intervention_name][0][1]
+                                    ),
                                    custom_histvars = self.custom_histvars, custom_histories=self.custom_histories,
                                    covpredict_custom = self.covpredict_custom, ymodel_predict_custom=self.ymodel_predict_custom,
                                    ymodel = self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
