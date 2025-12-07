@@ -253,12 +253,36 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
         boot_results = []
         boot_pools = []
         for intervention_name in int_descript:
-            boot_result = simulate(seed=boot_seeds[boot_id], time_points=time_points, time_name=time_name,
+            boot_result = simulate(seed=boot_seeds[boot_id], 
+                                       
+                                       #time_points=time_points, 
+                                       time_points=(
+                                                    # Determine sim_time_points for each intervention
+                                                    len(self.intervention_dicts[intervention_name][0][3])
+                                                    if (
+                                                        intervention_name != "Natural course"
+                                                        and (
+                                                            self.intervention_dicts[intervention_name][0][1] == static
+                                                        )
+                                                    )
+                                                    else self.time_points
+                                                ),
+                                    
+                                       time_name=time_name,
                                        id=id, covnames=covnames, basecovs=basecovs,
                                        covmodels=covmodels,  covtypes=covtypes, cov_hist=cov_hist,
                                        covariate_fits=covariate_fits, rmses=rmses, bounds=bounds, outcome_type=outcome_type,
                                        obs_data=resample_data,
+                                       
                                        intervention=intervention_dicts[intervention_name],
+                                       
+                                       intervention_function=(
+                                                    self.intervention_dicts[intervention_name]
+                                                    if intervention_name == "Natural course"
+                                                    else self.intervention_dicts[intervention_name][0][1]
+                                                ),
+                                       
+                                       
                                        custom_histvars = custom_histvars, custom_histories=custom_histories,
                                        covpredict_custom=covpredict_custom, ymodel=ymodel,
                                        ymodel_predict_custom=ymodel_predict_custom,
