@@ -258,14 +258,14 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
                                        #time_points=time_points, 
                                        time_points=(
                                                     # Determine sim_time_points for each intervention
-                                                    len(self.intervention_dicts[intervention_name][0][3])
+                                                    len(intervention_dicts[intervention_name][0][3])
                                                     if (
                                                         intervention_name != "Natural course"
                                                         and (
-                                                            self.intervention_dicts[intervention_name][0][1] == static
+                                                            intervention_dicts[intervention_name][0][1] == static
                                                         )
                                                     )
-                                                    else self.time_points
+                                                    else time_points
                                                 ),
                                     
                                        time_name=time_name,
@@ -277,9 +277,9 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
                                        intervention=intervention_dicts[intervention_name],
                                        
                                        intervention_function=(
-                                                    self.intervention_dicts[intervention_name]
+                                                    intervention_dicts[intervention_name]
                                                     if intervention_name == "Natural course"
-                                                    else self.intervention_dicts[intervention_name][0][1]
+                                                    else intervention_dicts[intervention_name][0][1]
                                                 ),
                                        
                                        
