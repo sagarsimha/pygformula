@@ -6,6 +6,7 @@ from .histories import update_precoded_history, update_custom_history
 from .simulate import simulate
 from .fit import fit_covariate_model, fit_ymodel, fit_compevent_model
 from ..utils.helper import hr_data_helper, hr_comp_data_helper
+from ..interventions import static
 
 
 def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, covnames,
