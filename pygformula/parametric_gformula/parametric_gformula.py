@@ -781,7 +781,28 @@ class ParametricGformula:
                                                  int_descript=self.int_descript,
                                                  intervention_dicts = self.intervention_dicts,
                                                  covnames=self.covnames, basecovs=self.basecovs, cov_hist=self.cov_hist,
-                                                 time_points=self.time_points, n_simul=self.n_simul,
+                                                 
+                                                 #time_points=self.time_points, 
+                                                 time_points=(
+                                                    # Determine sim_time_points for each intervention
+                                                    len(self.intervention_dicts[intervention_name][0][3])
+                                                    if (
+                                                        intervention_name != "Natural course"
+                                                        and (
+                                                            self.intervention_dicts[intervention_name][0][1] == static
+                                                        )
+                                                    )
+                                                    else self.time_points
+                                                ),
+
+                                                intervention_function=(
+                                                    self.intervention_dicts[intervention_name]
+                                                    if intervention_name == "Natural course"
+                                                    else self.intervention_dicts[intervention_name][0][1]
+                                                ),
+                                                            
+                                                 
+                                                 n_simul=self.n_simul,
                                                  time_name=self.time_name, id=self.id,
                                                  custom_histvars=self.custom_histvars, custom_histories=self.custom_histories,
                                                  covpredict_custom=self.covpredict_custom,
@@ -811,7 +832,26 @@ class ParametricGformula:
                                                  int_descript=self.int_descript,
                                                  intervention_dicts=self.intervention_dicts,
                                                  covnames=self.covnames, basecovs=self.basecovs, cov_hist=self.cov_hist,
-                                                 time_points=self.time_points, n_simul=self.n_simul,
+                                                 
+                                                 #time_points=self.time_points, 
+                                                 time_points=(
+                                                    # Determine sim_time_points for each intervention
+                                                    len(self.intervention_dicts[intervention_name][0][3])
+                                                    if (
+                                                        intervention_name != "Natural course"
+                                                        and (
+                                                            self.intervention_dicts[intervention_name][0][1] == static
+                                                        )
+                                                    )
+                                                    else self.time_points
+                                                ),
+                                                intervention_function=(
+                                                    self.intervention_dicts[intervention_name]
+                                                    if intervention_name == "Natural course"
+                                                    else self.intervention_dicts[intervention_name][0][1]
+                                                ),
+                                                
+                                                 n_simul=self.n_simul,
                                                  time_name=self.time_name, id=self.id,
                                                  custom_histvars=self.custom_histvars, custom_histories=self.custom_histories,
                                                  covpredict_custom=self.covpredict_custom,
