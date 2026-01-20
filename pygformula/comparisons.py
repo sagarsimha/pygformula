@@ -90,15 +90,15 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
     """
     if censor:
         # for non-parametric cov means and risks
-        '''censor_pre = censor_fit.predict(obs_data)
+        censor_pre = censor_fit.predict(obs_data)
         censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
         obs_data['censor_p0_inv'] = censor_p0_inv
         censor_inv_cum = obs_data.groupby([id])['censor_p0_inv'].cumprod() #weight for a patient not censored up to each time point. The product assigns higher weight to patients at higher time points. They are the closest match to those being censored. Hence, higher weights.
         obs_data['censor_inv_cum'] = censor_inv_cum
-        w_censor = censor_inv_cum * (1 - obs_data[censor_name])''' # w=0 for censored people, w is finite for people who survived
+        w_censor = censor_inv_cum * (1 - obs_data[censor_name]) # w=0 for censored people, w is finite for people who survived
 
         # Stabilized IP weighting
-        # predict conditional survival probability
+        '''# predict conditional survival probability
         obs_data['p_survive_cond'] = 1 - censor_fit.predict(obs_data)
 
         # Compute marginal (average) survival probability at each t
@@ -110,7 +110,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_data['denominator'] = obs_data.groupby(id)['p_survive_cond'].cumprod()
 
         # Stabilized weight
-        w_censor = (obs_data['numerator'] / obs_data['denominator']) * (1 - obs_data[censor_name])
+        w_censor = (obs_data['numerator'] / obs_data['denominator']) * (1 - obs_data[censor_name])'''
 
         if outcome_type == 'survival' and compevent_cens:
             comprisk_p0_inv = 1 / (1 - compevent_fit.predict(obs_data))

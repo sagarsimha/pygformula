@@ -106,7 +106,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
     sub_data = obs_data[obs_data[time_name] > 0]
 
     for k, cov in enumerate(covnames):
-        #print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', cov)
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', cov)
         if covmodels[k] != 'NA':
             if visit_names and cov in visit_names:
                 max_visit = max_visits[visit_names.index(cov)]
