@@ -124,6 +124,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_data['IP_weight'] = w'''
         ########## Added this for quantile cutoff. Remove later ##########
         w_censor = obs_data['IP_weight']
+        #############################################################
         #############
 
         if ipw_cutoff_quantile:
