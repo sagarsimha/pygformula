@@ -527,12 +527,33 @@ class ParametricGformula:
             bounds = None
             rmses = None
 
+        if self.censor:
+            censor_fit, censor_model_coeffs, censor_model_stderrs, censor_model_vcovs, censor_model_fits_summary = \
+                fit_censor_model(censor_model=self.censor_model, censor_name=self.censor_name,
+                                 time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits)
+            model_coeffs.update(censor_model_coeffs)
+            model_stderrs.update(censor_model_stderrs)
+            model_vcovs.update(censor_model_vcovs)
+            model_fits_summary.update(censor_model_fits_summary)
+
+            # Cumulative inverse survival weights
+            censor_pre = censor_fit.predict(self.obs_data)
+            censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
+            #self.obs_data['censor_p0_inv'] = censor_p0_inv
+            censor_inv_cum = self.obs_data.groupby([self.id])['censor_p0_inv'].cumprod() #weight for a patient not censored up to each time point. The product assigns higher weight to patients at higher time points. They are the closest match to those being censored. Hence, higher weights.
+            #self.obs_data['censor_inv_cum'] = censor_inv_cum
+            w_censor = censor_inv_cum * (1 - self.obs_data[self.censor_name]) # w=0 for censored people, w is finite for people who survived
+            self.obs_data['IP_weight'] = w_censor
+        else:
+            censor_fit = None
+
         outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
             fit_ymodel(ymodel=self.ymodel, outcome_type=self.outcome_type,
                               outcome_name=self.outcome_name, ymodel_fit_custom=self.ymodel_fit_custom,
                               time_name=self.time_name, obs_data=self.obs_data,
                               competing=self.competing, compevent_name=self.compevent_name, return_fits=self.model_fits,
-                              yrestrictions = self.yrestrictions)
+                              yrestrictions = self.yrestrictions, 
+                              weight_column=self.obs_data['IP_weight'] if self.censor else None)
         model_coeffs.update(ymodel_coeffs)
         model_stderrs.update(ymodel_stderrs)
         model_vcovs.update(ymodel_vcovs)
@@ -551,16 +572,6 @@ class ParametricGformula:
         else:
             compevent_fit = None
 
-        if self.censor:
-            censor_fit, censor_model_coeffs, censor_model_stderrs, censor_model_vcovs, censor_model_fits_summary = \
-                fit_censor_model(censor_model=self.censor_model, censor_name=self.censor_name,
-                                 time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits)
-            model_coeffs.update(censor_model_coeffs)
-            model_stderrs.update(censor_model_stderrs)
-            model_vcovs.update(censor_model_vcovs)
-            model_fits_summary.update(censor_model_fits_summary)
-        else:
-            censor_fit = None
 
         # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
         # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.

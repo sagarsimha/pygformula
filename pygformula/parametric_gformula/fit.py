@@ -256,7 +256,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
 
 
 def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name, obs_data,
-               competing, compevent_name, return_fits, yrestrictions):
+               competing, compevent_name, return_fits, yrestrictions, weight_column=None):
     """
     This is a function to fit parametric model for the outcome.
 
