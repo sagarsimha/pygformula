@@ -256,7 +256,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
 
 
 def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name, obs_data,
-               competing, compevent_name, return_fits, yrestrictions, weight_column):
+               competing, compevent_name, return_fits, yrestrictions):
     """
     This is a function to fit parametric model for the outcome.
 
@@ -339,7 +339,7 @@ def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name,
         if ymodel_fit_custom is not None:
             outcome_fit = ymodel_fit_custom(ymodel, fit_data)
         else:
-            outcome_fit = smf.glm(ymodel, fit_data, family=sm.families.Binomial(), var_weights=np.asarray(weight_column)).fit()
+            outcome_fit = smf.glm(ymodel, fit_data, family=sm.families.Binomial(), var_weights=np.asarray(fit_data['IP_weight'])).fit()
     elif outcome_type == 'continuous_eof':
         if ymodel_fit_custom is not None:
             outcome_fit = ymodel_fit_custom(ymodel, fit_data)

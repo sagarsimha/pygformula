@@ -552,8 +552,7 @@ class ParametricGformula:
                               outcome_name=self.outcome_name, ymodel_fit_custom=self.ymodel_fit_custom,
                               time_name=self.time_name, obs_data=self.obs_data,
                               competing=self.competing, compevent_name=self.compevent_name, return_fits=self.model_fits,
-                              yrestrictions = self.yrestrictions, 
-                              weight_column=self.obs_data['IP_weight'] if self.censor else None)
+                              yrestrictions = self.yrestrictions)
         model_coeffs.update(ymodel_coeffs)
         model_stderrs.update(ymodel_stderrs)
         model_vcovs.update(ymodel_vcovs)
