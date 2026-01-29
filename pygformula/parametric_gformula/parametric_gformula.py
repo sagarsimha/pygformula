@@ -537,13 +537,32 @@ class ParametricGformula:
             model_fits_summary.update(censor_model_fits_summary)
 
             # Cumulative inverse survival weights
-            censor_pre = censor_fit.predict(self.obs_data)
+            '''censor_pre = censor_fit.predict(self.obs_data)
             censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
             self.obs_data['censor_p0_inv'] = censor_p0_inv
             censor_inv_cum = self.obs_data.groupby([self.id])['censor_p0_inv'].cumprod() #weight for a patient not censored up to each time point. The product assigns higher weight to patients at higher time points. They are the closest match to those being censored. Hence, higher weights.
             #self.obs_data['censor_inv_cum'] = censor_inv_cum
-            w_censor = censor_inv_cum * (1 - self.obs_data[self.censor_name]) # w=0 for censored people, w is finite for people who survived
+            w_censor = censor_inv_cum * (1 - self.obs_data[self.censor_name]) # w=0 for censored people, w is finite for people who survived'''
+
+            # Stabilized IP weighting
+            # predict conditional survival probability
+            obs_data['p_survive_cond'] = 1 - censor_fit.predict(obs_data)
+
+            # Compute marginal (average) survival probability at each t
+            p_survive_marg = obs_data.groupby(time_name)[censor_name].apply(lambda x: 1 - x.mean())
+            obs_data = obs_data.merge(p_survive_marg.rename('p_survive_marg'), left_on=time_name, right_index=True)
+
+            # Cumulative product - conditional survival and marginal survival probabilities
+            obs_data['numerator'] = obs_data.groupby(id)['p_survive_marg'].cumprod()
+            obs_data['denominator'] = obs_data.groupby(id)['p_survive_cond'].cumprod()
+
+            # Stabilized weight
+            w_censor = (obs_data['numerator'] / obs_data['denominator']) * (1 - obs_data[censor_name])
+            
             self.obs_data['IP_weight'] = w_censor
+
+
+
         else:
             censor_fit = None
 
