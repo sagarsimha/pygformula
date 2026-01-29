@@ -121,17 +121,13 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
             w = w_comp * w_censor
         else:
             w = w_censor
-        obs_data['IP_weight'] = w'''
-        ########## Added this for quantile cutoff. Remove later ##########
-        w_censor = obs_data['IP_weight']
-        #############################################################
-        #############
+        obs_data['IP_weight'] = w
 
         if ipw_cutoff_quantile:
             quantile_w = np.percentile(list(w_censor), ipw_cutoff_quantile * 100)
             obs_data.loc[obs_data['IP_weight'] > quantile_w, 'IP_weight'] = quantile_w
         if ipw_cutoff_value:
-            obs_data.loc[obs_data['IP_weight'] > ipw_cutoff_value, 'IP_weight'] = ipw_cutoff_value
+            obs_data.loc[obs_data['IP_weight'] > ipw_cutoff_value, 'IP_weight'] = ipw_cutoff_value '''
 
         obs_data['IP_weight_cov'] = np.where(obs_data[time_name] > 0, obs_data['IP_weight'].shift(1), 1) #Not understood the point of this yet.
 

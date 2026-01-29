@@ -560,7 +560,9 @@ class ParametricGformula:
             w_censor = (self.obs_data['numerator'] / self.obs_data['denominator']) * (1 - self.obs_data[self.censor_name])'''
             
             self.obs_data['IP_weight'] = w_censor
-
+            if self.ipw_cutoff_quantile:
+                quantile_w = np.percentile(list(w_censor), self.ipw_cutoff_quantile * 100)
+                self.obs_data.loc[self.obs_data['IP_weight'] > quantile_w, 'IP_weight'] = quantile_w
 
 
         else:
