@@ -120,6 +120,9 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
             else:
                 fit_data = sub_data.copy()
 
+            # Restrict to survive ICU and proceed to discharge (D=0). These are also the crowd who have A=0 and A=1.
+            #fit_data = fit_data[fit_data["D"] == 0]
+
             if restrictions is not None:
                restrictcovs = [restrictions[0] for i in range(len(restrictions))]
                if cov in restrictcovs:
@@ -339,7 +342,7 @@ def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name,
         if ymodel_fit_custom is not None:
             outcome_fit = ymodel_fit_custom(ymodel, fit_data)
         else:
-            outcome_fit = smf.glm(ymodel, fit_data, family=sm.families.Binomial(), var_weights=np.asarray(fit_data['IP_weight'])).fit()
+            outcome_fit = smf.glm(ymodel, fit_data, family=sm.families.Binomial(), freq_weights=np.asarray(fit_data['IP_weight'])).fit()
     elif outcome_type == 'continuous_eof':
         if ymodel_fit_custom is not None:
             outcome_fit = ymodel_fit_custom(ymodel, fit_data)
