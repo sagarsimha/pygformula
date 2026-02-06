@@ -527,47 +527,6 @@ class ParametricGformula:
             bounds = None
             rmses = None
 
-        if self.censor:
-            censor_fit, censor_model_coeffs, censor_model_stderrs, censor_model_vcovs, censor_model_fits_summary = \
-                fit_censor_model(censor_model=self.censor_model, censor_name=self.censor_name,
-                                 time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits)
-            model_coeffs.update(censor_model_coeffs)
-            model_stderrs.update(censor_model_stderrs)
-            model_vcovs.update(censor_model_vcovs)
-            model_fits_summary.update(censor_model_fits_summary)
-
-            # Cumulative inverse survival weights
-            censor_pre = censor_fit.predict(self.obs_data)
-            censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
-            self.obs_data['censor_p0_inv'] = censor_p0_inv
-            censor_inv_cum = self.obs_data.groupby([self.id])['censor_p0_inv'].cumprod() #weight for a patient not censored up to each time point. The product assigns higher weight to patients at higher time points. They are the closest match to those being censored. Hence, higher weights.
-            #self.obs_data['censor_inv_cum'] = censor_inv_cum
-            w_censor = censor_inv_cum * (1 - self.obs_data[self.censor_name]) # w=0 for censored people, w is finite for people who survived
-
-            '''# Stabilized IP weighting
-            # predict conditional survival probability
-            self.obs_data['p_survive_cond'] = 1 - censor_fit.predict(self.obs_data)
-
-            # Compute marginal (average) survival probability at each t
-            p_survive_marg = self.obs_data.groupby(self.time_name)[self.censor_name].apply(lambda x: 1 - x.mean())
-            self.obs_data = self.obs_data.merge(p_survive_marg.rename('p_survive_marg'), left_on=self.time_name, right_index=True)
-
-            # Cumulative product - conditional survival and marginal survival probabilities
-            self.obs_data['numerator'] = self.obs_data.groupby(self.id)['p_survive_marg'].cumprod()
-            self.obs_data['denominator'] = self.obs_data.groupby(self.id)['p_survive_cond'].cumprod()
-
-            # Stabilized weight
-            w_censor = (self.obs_data['numerator'] / self.obs_data['denominator']) * (1 - self.obs_data[self.censor_name])'''
-            
-            self.obs_data['IP_weight'] = w_censor
-            if self.ipw_cutoff_quantile:
-                quantile_w = np.percentile(list(w_censor), self.ipw_cutoff_quantile * 100)
-                self.obs_data.loc[self.obs_data['IP_weight'] > quantile_w, 'IP_weight'] = quantile_w
-
-
-        else:
-            censor_fit = None
-
         outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
             fit_ymodel(ymodel=self.ymodel, outcome_type=self.outcome_type,
                               outcome_name=self.outcome_name, ymodel_fit_custom=self.ymodel_fit_custom,
@@ -591,6 +550,17 @@ class ParametricGformula:
             model_fits_summary.update(comp_model_fits_summary)
         else:
             compevent_fit = None
+        
+        if self.censor:
+            censor_fit, censor_model_coeffs, censor_model_stderrs, censor_model_vcovs, censor_model_fits_summary = \
+                fit_censor_model(censor_model=self.censor_model, censor_name=self.censor_name,
+                                 time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits)
+            model_coeffs.update(censor_model_coeffs)
+            model_stderrs.update(censor_model_stderrs)
+            model_vcovs.update(censor_model_vcovs)
+            model_fits_summary.update(censor_model_fits_summary)
+        else:
+            censor_fit = None
 
 
         # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers

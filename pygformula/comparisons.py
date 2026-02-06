@@ -90,7 +90,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
     """
     if censor:
         
-        '''# for non-parametric cov means and risks
+        # for non-parametric cov means and risks
         censor_pre = censor_fit.predict(obs_data)
         censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability
         obs_data['censor_p0_inv'] = censor_p0_inv
@@ -98,7 +98,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         obs_data['censor_inv_cum'] = censor_inv_cum
         w_censor = censor_inv_cum * (1 - obs_data[censor_name]) # w=0 for censored people, w is finite for people who survived
 
-        # Stabilized IP weighting
+        '''# Stabilized IP weighting
         # predict conditional survival probability
         obs_data['p_survive_cond'] = 1 - censor_fit.predict(obs_data)
 
@@ -113,7 +113,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         # Stabilized weight
         w_censor = (obs_data['numerator'] / obs_data['denominator']) * (1 - obs_data[censor_name])'''
 
-        '''if outcome_type == 'survival' and compevent_cens:
+        if outcome_type == 'survival' and compevent_cens:
             comprisk_p0_inv = 1 / (1 - compevent_fit.predict(obs_data))
             obs_data['comprisk_p0_inv'] = comprisk_p0_inv
             comprisk_inv_cum = obs_data.groupby([id])['comprisk_p0_inv'].cumprod()
@@ -127,7 +127,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
             quantile_w = np.percentile(list(w_censor), ipw_cutoff_quantile * 100)
             obs_data.loc[obs_data['IP_weight'] > quantile_w, 'IP_weight'] = quantile_w
         if ipw_cutoff_value:
-            obs_data.loc[obs_data['IP_weight'] > ipw_cutoff_value, 'IP_weight'] = ipw_cutoff_value '''
+            obs_data.loc[obs_data['IP_weight'] > ipw_cutoff_value, 'IP_weight'] = ipw_cutoff_value
 
         obs_data['IP_weight_cov'] = np.where(obs_data[time_name] > 0, obs_data['IP_weight'].shift(1), 1) #Not understood the point of this yet...
 
