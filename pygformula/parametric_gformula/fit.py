@@ -120,8 +120,8 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
             else:
                 fit_data = sub_data.copy()
 
-            # Restrict to survive ICU and proceed to discharge (D=0). These are also the crowd who have A=0 and A=1.
-            fit_data = fit_data[fit_data["D"] == 0] # Survivors
+            # Restrict to survive ICU and proceed to discharge (D=0). These are also the crowd who have A=0 and A=1. Not sure if this step is necessary. 
+            # fit_data = fit_data[fit_data["D"] == 0] # Survivors
 
             if restrictions is not None:
                restrictcovs = [restrictions[0] for i in range(len(restrictions))]
