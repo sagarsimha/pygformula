@@ -129,7 +129,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         if ipw_cutoff_value:
             obs_data.loc[obs_data['IP_weight'] > ipw_cutoff_value, 'IP_weight'] = ipw_cutoff_value '''
 
-        obs_data['IP_weight_cov'] = np.where(obs_data[time_name] > 0, obs_data['IP_weight'].shift(1), 1) #Not understood the point of this yet.
+        obs_data['IP_weight_cov'] = np.where(obs_data[time_name] > 0, obs_data['IP_weight'].shift(1), 1) #Not understood the point of this yet...
 
         obs_means = {}
         if covnames is not None:
