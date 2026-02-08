@@ -89,7 +89,6 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
 
     """
     if censor:
-        
         # for non-parametric cov means and risks
         censor_pre = censor_fit.predict(obs_data)
         censor_p0_inv = 1 / (1 - censor_pre) #inverse of survival probability

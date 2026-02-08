@@ -562,7 +562,6 @@ class ParametricGformula:
         else:
             censor_fit = None
 
-
         # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
         # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.
         if self.n_simul != len(np.unique(self.obs_data[self.id])):
