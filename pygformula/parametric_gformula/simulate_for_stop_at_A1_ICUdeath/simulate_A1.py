@@ -6,11 +6,11 @@ import types
 from functools import reduce
 import operator
 from scipy.stats import truncnorm
-from .histories import update_precoded_history, update_custom_history
-from ..utils.helper import categorical_func
-from ..interventions import intervention_func
-from ..interventions import natural
-from ..interventions import static
+from ..histories import update_precoded_history, update_custom_history
+from ...utils.helper import categorical_func
+from ...interventions import intervention_func
+from ...interventions import natural
+from ...interventions import static
 
 import random, string
 
@@ -210,7 +210,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
     #Changes for NC
     #if intervention == natural:
-    if True: #intervention_function != static:
+    if intervention_function != static:
         final_df_list = [] # Collect dataframes of ids which has A=1 at t=0, t=1, t=2 and so on.
     ###########################################################################################
 
@@ -223,8 +223,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t) # does intervention and new_df is updated within
 
             # Changed for NC. Compulsory discharge at "time_points"
-            #if (intervention_function != static) and (t == time_points - 1):
-            if (t == time_points - 1):
+            if (intervention_function != static) and (t == time_points - 1):
                 new_df.loc[new_df[time_name] == t, 'A'] = 1
 
             pool.loc[pool[time_name] == t] = new_df
@@ -235,7 +234,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
             new_df = pool[pool[time_name] == t].copy()
 
-            '''if competing and not compevent_cens:
+            if competing and not compevent_cens:
                 prob_D = compevent_fit.predict(new_df)
                 new_df['prob_D'] = prob_D
 
@@ -249,21 +248,14 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                         comp_restrict_mask = reduce(operator.and_, masks)
                         new_df.loc[~comp_restrict_mask, 'prob_D'] = restriction[1]
 
-                new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)'''
+                new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)
 
             if ymodel_predict_custom is not None:
                 pre_y = ymodel_predict_custom(ymodel=ymodel, new_df=new_df, fit=outcome_fit)
             else:
                 pre_y = outcome_fit.predict(new_df)
-            
-            # Draw outcome from calculated Py
-            Y_temp = pre_y.apply(binorm_sample)
 
-            #print("Investigating Y_temp")
-            #print(pre_y.value_counts())
-            #print(Y_temp.value_counts())
-
-            '''if outcome_type == 'survival':
+            if outcome_type == 'survival':
                 new_df['prob1'] = pre_y
 
                 if yrestrictions is not None:
@@ -277,41 +269,36 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                         new_df.loc[~restrict_mask, 'prob1'] = restriction[1]
 
                 new_df['prob0'] = 1 - new_df['prob1']
-                new_df[outcome_name] = new_df['prob1'].apply(binorm_sample)'''
+                new_df[outcome_name] = new_df['prob1'].apply(binorm_sample)
 
             #if intervention != natural: # Changes for NC
-            '''if intervention_function == static:
+            if intervention_function == static:
                 if outcome_type == 'binary_eof':
                     new_df['Py'] = 'NA' if t < time_points - 1 else pre_y
                 if outcome_type == 'continuous_eof':
-                    new_df['Ey'] = 'NA' if t < time_points - 1 else pre_y'''
+                    new_df['Ey'] = 'NA' if t < time_points - 1 else pre_y
 
-            '''if competing and not compevent_cens:
-                new_df.loc[new_df[compevent_name] == 1, outcome_name] = pd.NA'''
+            if competing and not compevent_cens:
+                new_df.loc[new_df[compevent_name] == 1, outcome_name] = pd.NA
 
             pool = pd.concat([pool[pool[time_name] < t], new_df])
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
             # Changes for NC to stop simulation once A=1
-            if True: #intervention_function != static:
-                #ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
-                ids_with_A1_Y1_t0 = pool.loc[
-                                        (pool['A'] == 1) | (Y_temp == 1),
-                                        id
-                                    ].unique() # ids with A=1 or Y=1 at t=0
-                print('kicked_out at t0', len(ids_with_A1_Y1_t0))
+            if intervention_function != static:
+                ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
 
-                pool_with_A1_Y1_t0 = pool[pool[id].isin(ids_with_A1_Y1_t0)]     # pool only with A=1 or Y=1 at t=0
-                pool = pool[~pool[id].isin(ids_with_A1_Y1_t0)]  # Remove ids with A=1, or Y=1 t=0 from pool
+                pool_with_A1_t0 = pool[pool[id].isin(ids_with_A1_t0)]     # pool only with A=1 at t=0
+                pool = pool[~pool[id].isin(ids_with_A1_t0)]  # Remove ids with A=1, t=0 from pool
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Py'] = Y_temp #pre_y
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = pre_y
                     pool['Py'] = np.nan
-                '''if outcome_type == 'continuous_eof':
-                    pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Ey'] = Y_temp #pre_y
-                    pool['Ey'] = np.nan'''
+                if outcome_type == 'continuous_eof':
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
+                    pool['Ey'] = np.nan
 
-                final_df_list.append(pool_with_A1_Y1_t0)  # store them in global list for concatenation at the end
+                final_df_list.append(pool_with_A1_t0)  # store them in global list for concatenation at the end
 
         else:
             new_df = pool[pool[time_name] == t-1].copy()
@@ -451,8 +438,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t)
 
             # Changed for NC. Compulsory discharge at "time_points"
-            #if (intervention_function != static) and (t == time_points - 1):
-            if (t == time_points - 1):
+            if (intervention_function != static) and (t == time_points - 1):
                 new_df.loc[new_df[time_name] == t, 'A'] = 1
 
             pool.loc[pool[time_name] == t] = new_df
@@ -463,7 +449,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
             new_df = pool[pool[time_name] == t].copy()
 
-            '''if competing and not compevent_cens:
+            if competing and not compevent_cens:
                 params_D = re.split('[~|\+]', compevent_model.replace(' ', ''))
                 prob_D = compevent_fit.predict(new_df[params_D])
                 new_df['prob_D'] = prob_D
@@ -478,18 +464,14 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                         comp_restrict_mask = reduce(operator.and_, masks)
                         new_df.loc[~comp_restrict_mask, 'prob_D'] = restriction[1]
 
-                new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)'''
+                new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)
 
             if ymodel_predict_custom is not None:
                 pre_y = ymodel_predict_custom(ymodel=ymodel, new_df=new_df, fit=outcome_fit)
             else:
                 pre_y = outcome_fit.predict(new_df)
-            
-            # Draw outcome from calculated Py
-            Y_temp = pre_y.apply(binorm_sample)
-            
 
-            '''if outcome_type == 'survival':
+            if outcome_type == 'survival':
                 new_df['prob1'] = pre_y
 
                 if yrestrictions is not None:
@@ -503,47 +485,41 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                         new_df.loc[~restrict_mask, 'prob1'] = restriction[1]
 
                 new_df['prob0'] = 1 - new_df['prob1']
-                new_df[outcome_name] = new_df['prob1'].apply(binorm_sample)'''
+                new_df[outcome_name] = new_df['prob1'].apply(binorm_sample)
 
             # Changes for NC
-            '''if intervention_function == static:
+            if intervention_function == static:
                 if outcome_type == 'binary_eof':
                     new_df['Py'] = 'NA' if t < time_points - 1 else pre_y
                 if outcome_type == 'continuous_eof':
-                    new_df['Ey'] = 'NA' if t < time_points - 1 else pre_y'''
+                    new_df['Ey'] = 'NA' if t < time_points - 1 else pre_y
 
-            '''if competing and not compevent_cens:
-                new_df.loc[new_df[compevent_name] == 1, outcome_name] = pd.NA'''
+            if competing and not compevent_cens:
+                new_df.loc[new_df[compevent_name] == 1, outcome_name] = pd.NA
 
             pool.loc[pool[time_name] == t] = new_df
 
             # Changes for NC to stop simulation once A=1 at any t
-            if True: #intervention_function != static:
-                #ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()  # ids with A=1 at t
+            if intervention_function != static:
+                ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()  # ids with A=1 at t
 
-                ids_with_A1_Y1_t = pool.loc[
-                                        (pool['A'] == 1) | (Y_temp == 1),
-                                        id
-                                    ].unique() # ids with A=1 or Y=1 at t
-                print('kicked_out at t', len(ids_with_A1_Y1_t))
-
-                pool_with_A1_Y1_t = pool[pool[id].isin(ids_with_A1_Y1_t)]  # pool only with A=1 at t
-                pool = pool[~pool[id].isin(ids_with_A1_Y1_t)]  # Remove ids with A=1, t from pool
+                pool_with_A1_t = pool[pool[id].isin(ids_with_A1_t)]  # pool only with A=1 at t
+                pool = pool[~pool[id].isin(ids_with_A1_t)]  # Remove ids with A=1, t from pool
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Py'] = np.nan
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Py'] = Y_temp #pre_y
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] < t, 'Py'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = pre_y
                     pool['Py'] = np.nan
                 if outcome_type == 'continuous_eof':
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Ey'] = np.nan
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Ey'] = Y_temp #pre_y
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] < t, 'Ey'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan
 
-                final_df_list.append(pool_with_A1_Y1_t)  # store them in global list for concatenation at the end
+                final_df_list.append(pool_with_A1_t)  # store them in global list for concatenation at the end
 
     # Changes for NC and dynamic
     # Concatenate all dataframes at different t into a single DataFrame pool
-    if True: #intervention_function != static:
+    if intervention_function != static:
         final_df_list.append(pool)
         pool = pd.concat(final_df_list, ignore_index=True)
         pool.sort_values([id, time_name], ascending=[True, True], inplace=True)

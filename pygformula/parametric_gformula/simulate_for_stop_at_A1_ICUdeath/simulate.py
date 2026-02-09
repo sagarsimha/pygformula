@@ -296,7 +296,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             if True: #intervention_function != static:
                 #ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
                 ids_with_A1_Y1_t0 = pool.loc[
-                                        (pool['A'] == 1),# | (Y_temp == 1),
+                                        (pool['A'] == 1) | (Y_temp == 1),
                                         id
                                     ].unique() # ids with A=1 or Y=1 at t=0
                 print('kicked_out at t0', len(ids_with_A1_Y1_t0))
@@ -307,9 +307,9 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 if outcome_type == 'binary_eof':
                     pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Py'] = Y_temp #pre_y
                     pool['Py'] = np.nan
-                if outcome_type == 'continuous_eof':
+                '''if outcome_type == 'continuous_eof':
                     pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Ey'] = Y_temp #pre_y
-                    pool['Ey'] = np.nan
+                    pool['Ey'] = np.nan'''
 
                 final_df_list.append(pool_with_A1_Y1_t0)  # store them in global list for concatenation at the end
 
