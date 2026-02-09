@@ -259,13 +259,13 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             # Draw outcome from calculated Py
             Y_temp = pre_y.apply(binorm_sample)
 
-            print("Investigating Y_temp")
-            print(pre_y.value_counts())
-            print(Y_temp.value_counts())
+            #print("Investigating Y_temp")
+            #print(pre_y.value_counts())
+            #print(Y_temp.value_counts())
 
             # Y_temp is the simulated outcome at t=0. This has to be added as a column in the newdf/pool. For now adding into newdf
             new_df['Y_temp'] = Y_temp
-            print(new_df['Y_temp'].value_counts())
+            #print(new_df['Y_temp'].value_counts())
 
 
             '''if outcome_type == 'survival':
@@ -298,7 +298,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
             # Changes for NC to stop simulation once A=1
-            if True: #intervention_function != static:
+            if False: #intervention_function != static:
                 #ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
                 ids_with_A1_Y1_t0 = pool.loc[
                                         (pool['A'] == 1) | (pool['Y_temp'] == 1),
