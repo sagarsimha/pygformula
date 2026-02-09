@@ -297,8 +297,18 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             pool = pd.concat([pool[pool[time_name] < t], new_df])
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
+            
+            print("Pool inspection at t=0")
+            print(pool['A'].value_counts())
+            print(pool['Y_temp'].value_counts())
+            print(pool.loc[(pool['A'] == 1) | (pool['Y_temp'] == 1),
+                                        id
+                                    ].nunique())
+            
+            
+            
             # Changes for NC to stop simulation once A=1. checking
-            if False: #intervention_function != static:
+            if True: #intervention_function != static:
                 #ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
                 ids_with_A1_Y1_t0 = pool.loc[
                                         (pool['A'] == 1) | (pool['Y_temp'] == 1),
