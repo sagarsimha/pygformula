@@ -533,7 +533,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 print('kicked_out at t', len(ids_with_A1_Y1_t))
 
                 pool_with_A1_Y1_t = pool[pool[id].isin(ids_with_A1_Y1_t)]  # pool only with A=1 at t
-                pool = pool[~pool[id].isin(ids_with_A1_Y1_t)]  # Remove ids with A=1, t from pool
+                pool = pool[~pool[id].isin(ids_with_A1_Y1_t)]  # Remove ids with A=1, t from pool.
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Py'] = np.nan
