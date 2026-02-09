@@ -265,6 +265,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
             # Y_temp is the simulated outcome at t=0. This has to be added as a column in the newdf/pool. For now adding into newdf
             new_df['Y_temp'] = Y_temp
+            print(new_df['Y_temp'].value_counts())
 
 
             '''if outcome_type == 'survival':
