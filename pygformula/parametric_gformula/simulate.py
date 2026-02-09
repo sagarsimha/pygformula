@@ -263,6 +263,10 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             #print(pre_y.value_counts())
             #print(Y_temp.value_counts())
 
+            # Y_temp is the simulated outcome at t=0. This has to be added as a column in the newdf/pool. For now adding into newdf
+            new_df['Y_temp'] = Y_temp
+
+
             '''if outcome_type == 'survival':
                 new_df['prob1'] = pre_y
 
@@ -296,7 +300,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             if True: #intervention_function != static:
                 #ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
                 ids_with_A1_Y1_t0 = pool.loc[
-                                        (pool['A'] == 1) | (Y_temp == 1),
+                                        (pool['A'] == 1) | (pool['Y_temp'] == 1),
                                         id
                                     ].unique() # ids with A=1 or Y=1 at t=0
                 print('kicked_out at t0', len(ids_with_A1_Y1_t0))
@@ -305,7 +309,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_A1_Y1_t0)]  # Remove ids with A=1, or Y=1 t=0 from pool
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Py'] = Y_temp #pre_y
+                    pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Py'] = pool_with_A1_Y1_t0['Y_temp'] #Y_temp #pre_y
                     pool['Py'] = np.nan
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Ey'] = Y_temp #pre_y
@@ -487,6 +491,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             
             # Draw outcome from calculated Py
             Y_temp = pre_y.apply(binorm_sample)
+            new_df['Y_temp'] = Y_temp
             
 
             '''if outcome_type == 'survival':
@@ -522,7 +527,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 #ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()  # ids with A=1 at t
 
                 ids_with_A1_Y1_t = pool.loc[
-                                        (pool['A'] == 1) | (Y_temp == 1),
+                                        (pool['A'] == 1) | (pool['Y_temp'] == 1),
                                         id
                                     ].unique() # ids with A=1 or Y=1 at t
                 print('kicked_out at t', len(ids_with_A1_Y1_t))
@@ -532,12 +537,12 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Py'] = np.nan
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Py'] = Y_temp #pre_y
+                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Py'] = pool_with_A1_Y1_t['Y_temp'] #Y_temp #pre_y
                     pool['Py'] = np.nan
-                if outcome_type == 'continuous_eof':
+                '''if outcome_type == 'continuous_eof':
                     pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Ey'] = np.nan
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Ey'] = Y_temp #pre_y
-                    pool['Ey'] = np.nan
+                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Ey'] = pool_with_A1_Y1_t['Y_temp'] #Y_temp #pre_y
+                    pool['Ey'] = np.nan'''
 
                 final_df_list.append(pool_with_A1_Y1_t)  # store them in global list for concatenation at the end
 
