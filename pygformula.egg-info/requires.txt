@@ -1,0 +1,12 @@
+joblib>=1.2
+lifelines>=0.27
+matplotlib>=3.5
+numpy>=1.22
+pandas>=1.5
+prettytable>=3.10
+pytruncreg>=0.1
+scipy>=1.10
+seaborn>=0.11
+statsmodels>=0.14
+tqdm>=4.64
+PyQt5>=5.15

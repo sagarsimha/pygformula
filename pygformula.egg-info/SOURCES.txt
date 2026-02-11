@@ -1,15 +1,15 @@
 LICENSE
 README.md
-setup.py
+pyproject.toml
 pygformula/__init__.py
 pygformula/comparisons.py
 pygformula/data.py
 pygformula/interventions.py
 pygformula/plot.py
-pygformula/version.py
 pygformula.egg-info/PKG-INFO
 pygformula.egg-info/SOURCES.txt
 pygformula.egg-info/dependency_links.txt
+pygformula.egg-info/requires.txt
 pygformula.egg-info/top_level.txt
 pygformula/parametric_gformula/__init__.py
 pygformula/parametric_gformula/bootstrap.py
@@ -17,6 +17,8 @@ pygformula/parametric_gformula/fit.py
 pygformula/parametric_gformula/histories.py
 pygformula/parametric_gformula/parametric_gformula.py
 pygformula/parametric_gformula/simulate.py
+pygformula/parametric_gformula/simulate_for_stop_at_A1_ICUdeath/simulate_A1.py
+pygformula/parametric_gformula/simulate_for_stop_at_A1_ICUdeath/simulate_ref_A1_Y1.py
 pygformula/utils/__init__.py
 pygformula/utils/helper.py
 pygformula/utils/util.py

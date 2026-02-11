@@ -300,9 +300,12 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A1_t0 = pool[pool[id].isin(ids_with_A1_t0)]     # pool only with A=1 at t=0
                 pool = pool[~pool[id].isin(ids_with_A1_t0)]  # Remove ids with A=1, t=0 from pool
 
+                # Predict Z only on the discharge rows at the current time t
+                pool_with_A1_t0_t = pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t].copy()
+
                 # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
-                pre_z = outcome_fit.predict(pool_with_A1_t0)
-                Z_A1_t0 = pre_z.apply(binorm_sample)
+                pre_z = outcome_fit.predict(pool_with_A1_t0_t)
+                Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
@@ -561,9 +564,12 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A1_t = pool[pool[id].isin(ids_with_A1_t)]     # pool only with A=1 at t
                 pool = pool[~pool[id].isin(ids_with_A1_t)]  # Remove ids with A=1, t from pool
 
+                # Predict Z only on the discharge rows at the current time t
+                pool_with_A1_t_t = pool_with_A1_t.loc[pool_with_A1_t[time_name] == t].copy()
+                
                 # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
-                pre_z = outcome_fit.predict(pool_with_A1_t)
-                Z_A1_t = pre_z.apply(binorm_sample)
+                pre_z = outcome_fit.predict(pool_with_A1_t_t)
+                Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is end of follow-up since A=1.
