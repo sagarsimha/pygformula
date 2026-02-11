@@ -693,7 +693,9 @@ class ParametricGformula:
         self.obs_means, self.est_means, self.obs_res, self.IP_weights, obs_data_debug = comparison_calculate(
             obs_data=self.obs_data[self.obs_data[self.time_name] >= 0], time_name=self.time_name,
             time_points=self.time_points, id=self.id, covnames=self.covnames, covtypes=self.covtypes,
-            outcome_name=self.outcome_name, outcome_type=self.outcome_type, nc_pool=self.natural_course_pool,
+            outcome_name='Y',
+            #outcome_name=self.outcome_name,
+            outcome_type=self.outcome_type, nc_pool=self.natural_course_pool,
             nc_risk=self.natural_course_risk, competing=self.competing, compevent_name=self.compevent_name,
             compevent_cens=self.compevent_cens, censor=self.censor,
             compevent_fit=compevent_fit, censor_name=self.censor_name,

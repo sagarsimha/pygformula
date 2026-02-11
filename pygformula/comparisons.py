@@ -88,6 +88,7 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         A list contains the inverse probability weights from the censor model.
 
     """
+
     if censor:
         # for non-parametric cov means and risks
         censor_pre = censor_fit.predict(obs_data)
