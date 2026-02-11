@@ -6,11 +6,11 @@ import types
 from functools import reduce
 import operator
 from scipy.stats import truncnorm
-from ..histories import update_precoded_history, update_custom_history
-from ...utils.helper import categorical_func
-from ...interventions import intervention_func
-from ...interventions import natural
-from ...interventions import static
+from .histories import update_precoded_history, update_custom_history
+from ..utils.helper import categorical_func
+from ..interventions import intervention_func
+from ..interventions import natural
+from ..interventions import static
 
 import random, string
 
