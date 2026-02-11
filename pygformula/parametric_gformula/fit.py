@@ -495,5 +495,68 @@ def fit_censor_model(censor_model, censor_name, time_name, obs_data, return_fits
     return censor_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 
+# Fitting a model for in-icu death
+def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
+    """
+    This is a function to fit parametric model for the in-icu death event.
+
+    Parameters
+    ----------
+    I_model: Str
+        A string specifying the model statement for the in-icu death variable
+
+    I_name: Str, default is None
+        A string specifying the name of the in-icu death variable in obs_data.
+
+    time_name: Str
+        A string specifying the name of the time variable in obs_data.
+
+    obs_data: DataFrame
+        Observed data or resampled data used to estimate the parameters of the censor model.
+
+    return_fits: Bool
+        A boolean value indicating whether to get the coefficients, standard errors, variance-covariance matrices of the
+        fitted censor model.
+
+    Returns
+    -------
+    I_fit: Class
+        A class object of the fitted model for the in-icu death event.
+
+    model_coeffs: Dict
+        A dictionary where the key is the name of in-icu death event and the value is the parameter estimates of the
+        fitted in-icu death model.
+
+    model_stderrs: Dict
+        A dictionary where the key is the name of in-icu death event and the value is the standard errors of the parameter
+        estimates of the fitted in-icu death model.
+
+    model_vcovs: Dict
+        A dictionary where the key is the name of in-icu death event and the value is the variance-covariance matrices of
+        the parameter estimates of the fitted in-icu death model.
+
+    model_fits_summary: Dict
+        A class object that contains the summary information of the fitted in-icu death model.
+
+    """
+
+    model_coeffs = {}
+    model_stderrs = {}
+    model_vcovs = {}
+    model_fits_summary = {}
+
+    fit_data = obs_data[obs_data[time_name] >= 0]
+
+    fit_data = fit_data[fit_data[I_name].notna()]
+    I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
+    if return_fits:
+        model_coeffs[I_name] = I_fit.params
+        model_stderrs[I_name] = I_fit.bse
+        model_vcovs[I_name] = I_fit.cov_params()
+        model_fits_summary[I_name] = I_fit.summary()
+
+    return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
+
+
 
 

@@ -6,11 +6,11 @@ import types
 from functools import reduce
 import operator
 from scipy.stats import truncnorm
-from .histories import update_precoded_history, update_custom_history
-from ..utils.helper import categorical_func
-from ..interventions import intervention_func
-from ..interventions import natural
-from ..interventions import static
+from ..histories import update_precoded_history, update_custom_history
+from ...utils.helper import categorical_func
+from ...interventions import intervention_func
+from ...interventions import natural
+from ...interventions import static
 
 import random, string
 
@@ -30,7 +30,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
              competing, compevent_name, compevent_model, compevent_fit, compevent_cens, trunc_params,
              visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds, baselags, below_zero_indicator,
              restrictions, yrestrictions, compevent_restrictions, covnames, covtypes, covmodels,
-             covariate_fits, cov_hist, sim_trunc):
+             covariate_fits, cov_hist, sim_trunc, I_fit, I_name):
 
     """
     This is an internal function to perform Monte Carlo simulation of the parametric g-formula.
@@ -208,10 +208,8 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
     pool = obs_data.loc[:, column_names]
 
 
-    #Changes for NC
-    #if intervention == natural:
-    if True: #intervention_function != static:
-        final_df_list = [] # Collect dataframes of ids which has A=1 at t=0, t=1, t=2 and so on.
+    #Changes for NC, SR, DR
+    final_df_list = [] # Collect dataframes of ids which has A=1 at t=0, t=1, t=2 and so on.
     ###########################################################################################
 
     for t in range(0, time_points):
@@ -220,6 +218,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             pool = pool[pool[time_name] <= t].copy() # pool all data until t=0
             new_df = pool[pool[time_name] == t] # pick only t=0
 
+            # Intervening happens here. new_df is updated within the function.
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t) # does intervention and new_df is updated within
 
             # Changed for NC. Compulsory discharge at "time_points"
@@ -251,22 +250,11 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
                 new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)'''
 
-            if ymodel_predict_custom is not None:
+
+            '''if ymodel_predict_custom is not None:
                 pre_y = ymodel_predict_custom(ymodel=ymodel, new_df=new_df, fit=outcome_fit)
             else:
-                pre_y = outcome_fit.predict(new_df)
-            
-            # Draw outcome from calculated Py
-            Y_temp = pre_y.apply(binorm_sample)
-
-            #print("Investigating Y_temp")
-            #print(pre_y.value_counts())
-            #print(Y_temp.value_counts())
-
-            # Y_temp is the simulated outcome at t=0. This has to be added as a column in the newdf/pool. For now adding into newdf
-            new_df['Y_temp'] = Y_temp
-            #print(new_df['Y_temp'].value_counts())
-
+                pre_y = outcome_fit.predict(new_df)'''
 
             '''if outcome_type == 'survival':
                 new_df['prob1'] = pre_y
@@ -297,46 +285,70 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             pool = pd.concat([pool[pool[time_name] < t], new_df])
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
-            
-            print("Pool inspection at t=0")
-            print(pool['A'].value_counts())
-            print(pool['Y_temp'].value_counts())
-            print(pool.loc[(pool['A'] == 1) | (pool['Y_temp'] == 1),
-                                        id
-                                    ].nunique())
-            
-            
-            
-            # Changes for NC to stop simulation once A=1. checking
-            if True: #intervention_function != static:
-                #ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
-                ids_with_A1_Y1_t0 = pool.loc[
-                                        (pool['A'] == 1) | (pool['Y_temp'] == 1),
-                                        id
-                                    ].unique() # ids with A=1 or Y=1 at t=0
-                print('kicked_out at t0', len(ids_with_A1_Y1_t0))
 
-                pool_with_A1_Y1_t0 = pool[pool[id].isin(ids_with_A1_Y1_t0)]     # pool only with A=1 or Y=1 at t=0
-                pool = pool[~pool[id].isin(ids_with_A1_Y1_t0)]  # Remove ids with A=1, or Y=1 t=0 from pool
+            # If A=1,
+                # Stop simulation for that ID.
+                # Predict post-discharge risk P(Z) until time point K, given history until discharge P(Z | H_tD) 
+                    ## which is a sum of risks from discharge until time point K (end of follow-up).
+                # If binorm(P(Z))=1, then set all-cause mortality Y=1 at that time point. 
+                # Kick that ID out which stops simulation.
+            
+            # ids for which A=1 at t=0. Works on pool dataframe which has entire trajectory so far. 
+            if True:
+                ids_with_A1_t0 = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t=0
+
+                pool_with_A1_t0 = pool[pool[id].isin(ids_with_A1_t0)]     # pool only with A=1 at t=0
+                pool = pool[~pool[id].isin(ids_with_A1_t0)]  # Remove ids with A=1, t=0 from pool
+
+                # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
+                pre_z = outcome_fit.predict(pool_with_A1_t0)
+                Z_A1_t0 = pre_z.apply(binorm_sample)
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Py'] = pool_with_A1_Y1_t0['Y_temp'] #Y_temp #pre_y
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
                     pool['Py'] = np.nan
                 '''if outcome_type == 'continuous_eof':
-                    pool_with_A1_Y1_t0.loc[pool_with_A1_Y1_t0[time_name] == t, 'Ey'] = Y_temp #pre_y
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
 
-                final_df_list.append(pool_with_A1_Y1_t0)  # store them in global list for concatenation at the end
+                final_df_list.append(pool_with_A1_t0)  # store them in global list for concatenation at the end
+                
+                # If A=0,
+                # Predict risk of in-icu death with P(I)
+                # If binorm(P(I))=1, then set Y=1 for that ID. 
+                # Kick that ID out which stop simulation for that ID.
+                # Else if binorm(P(I))=0, then continue simulation for that ID (nothing to do here).
+                
+                ids_with_A0_t0 = pool.loc[pool['A'] == 0, id].unique()    # ids with A=0 at t=0
+                pool_with_A0_t0 = pool[pool[id].isin(ids_with_A0_t0)]     # pool only with A=0 at t=0
+                
+                pool_with_A0_t0.sort_values([id, time_name], ascending=[True, True], inplace=True)
+                pool_with_A0_t0_t = pool_with_A0_t0[pool_with_A0_t0[time_name] == t].copy() # Redundant for t0 since only 1 time point.
+
+                # Compute P(in-icu mortality).
+                pre_i = I_fit.predict(pool_with_A0_t0_t)
+                I_t0 = pre_i.apply(binorm_sample)
+                pool_with_A0_t0_t['I_hat'] = I_t0
+
+                ids_with_I1_t0 = pool_with_A0_t0_t.loc[pool_with_A0_t0_t['I_hat'] == 1, id].unique()    # ids with I=1 at t=0 (A=0 as well)
+
+                pool_with_I1_t0 = pool[pool[id].isin(ids_with_I1_t0)]     # pool only with I=1, at t=0 (A=0 as well)
+                pool = pool[~pool[id].isin(ids_with_I1_t0)]  # Remove ids with I=1, t=0 (A=0) from pool
+
+                # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
+                pool_with_I1_t0['Py'] = 1
+
+                final_df_list.append(pool_with_I1_t0)  # store them in global list for concatenation at the end
 
         else:
             new_df = pool[pool[time_name] == t-1].copy()
             new_df[time_name] = t
 
-            if covtypes is not None:
+            '''if covtypes is not None:
                 if 'categorical time' in covtypes:
                     new_df.loc[new_df[time_name] == t, time_name + '_f'] = new_df[time_name].apply(categorical_func, time_thresholds=time_thresholds)
                 if 'square time' in covtypes:
-                    new_df.loc[new_df[time_name] == t, 'square_' + time_name] = new_df[time_name] * new_df[time_name]
+                    new_df.loc[new_df[time_name] == t, 'square_' + time_name] = new_df[time_name] * new_df[time_name]'''
             pool = pd.concat([pool, new_df])
             pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
 
@@ -365,14 +377,6 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                         elif covtypes[k] == 'normal':
                             estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov])
-                            '''if t==2:
-                                print("%%%")
-                                print(estimated_mean)
-                                print(len(estimated_mean))
-                                print("***")
-                                print(prediction)
-                                print(len(prediction))
-                                exit(0)'''
                             if sim_trunc:
                                 prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
                                 prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
@@ -466,8 +470,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t)
 
             # Changed for NC. Compulsory discharge at "time_points"
-            #if (intervention_function != static) and (t == time_points - 1):
-            if (t == time_points - 1):
+            if (intervention_function != static) and (t == time_points - 1):
                 new_df.loc[new_df[time_name] == t, 'A'] = 1
 
             pool.loc[pool[time_name] == t] = new_df
@@ -495,15 +498,10 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
                 new_df[compevent_name] = new_df['prob_D'].apply(binorm_sample)'''
 
-            if ymodel_predict_custom is not None:
+            '''if ymodel_predict_custom is not None:
                 pre_y = ymodel_predict_custom(ymodel=ymodel, new_df=new_df, fit=outcome_fit)
             else:
-                pre_y = outcome_fit.predict(new_df)
-            
-            # Draw outcome from calculated Py
-            Y_temp = pre_y.apply(binorm_sample)
-            new_df['Y_temp'] = Y_temp
-            
+                pre_y = outcome_fit.predict(new_df)'''
 
             '''if outcome_type == 'survival':
                 new_df['prob1'] = pre_y
@@ -533,29 +531,76 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
             pool.loc[pool[time_name] == t] = new_df
 
-            # Changes for NC to stop simulation once A=1 at any t
-            if True: #intervention_function != static:
-                #ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()  # ids with A=1 at t
+            '''# Changes for NC to stop simulation once A=1 at any t
+            if intervention_function != static:
+                ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()  # ids with A=1 at t
 
-                ids_with_A1_Y1_t = pool.loc[
-                                        (pool['A'] == 1) | (pool['Y_temp'] == 1),
-                                        id
-                                    ].unique() # ids with A=1 or Y=1 at t
-                print('kicked_out at t', len(ids_with_A1_Y1_t))
-
-                pool_with_A1_Y1_t = pool[pool[id].isin(ids_with_A1_Y1_t)]  # pool only with A=1 at t
-                pool = pool[~pool[id].isin(ids_with_A1_Y1_t)]  # Remove ids with A=1, t from pool.
+                pool_with_A1_t = pool[pool[id].isin(ids_with_A1_t)]  # pool only with A=1 at t
+                pool = pool[~pool[id].isin(ids_with_A1_t)]  # Remove ids with A=1, t from pool
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Py'] = np.nan
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Py'] = pool_with_A1_Y1_t['Y_temp'] #Y_temp #pre_y
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] < t, 'Py'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = pre_y
+                    pool['Py'] = np.nan
+                if outcome_type == 'continuous_eof':
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] < t, 'Ey'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Ey'] = pre_y
+                    pool['Ey'] = np.nan'''
+            
+            # If A=1,
+                # Stop simulation for that ID.
+                # Predict post-discharge risk P(Z) until time point K, given history until discharge P(Z | H_tD) 
+                    ## which is a sum of risks from discharge until time point K (end of follow-up).
+                # If binorm(P(Z))=1, then set all-cause mortality Y=1 at that time point. 
+                # Kick that ID out which stops simulation.
+            
+            # ids for which A=1 at t=0. Works on pool dataframe which has entire trajectory so far. 
+            if True:
+                ids_with_A1_t = pool.loc[pool['A'] == 1, id].unique()    # ids with A=1 at t
+
+                pool_with_A1_t = pool[pool[id].isin(ids_with_A1_t)]     # pool only with A=1 at t
+                pool = pool[~pool[id].isin(ids_with_A1_t)]  # Remove ids with A=1, t from pool
+
+                # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
+                pre_z = outcome_fit.predict(pool_with_A1_t)
+                Z_A1_t = pre_z.apply(binorm_sample)
+
+                if outcome_type == 'binary_eof':
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is end of follow-up since A=1.
                     pool['Py'] = np.nan
                 '''if outcome_type == 'continuous_eof':
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] < t, 'Ey'] = np.nan
-                    pool_with_A1_Y1_t.loc[pool_with_A1_Y1_t[time_name] == t, 'Ey'] = pool_with_A1_Y1_t['Y_temp'] #Y_temp #pre_y
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
 
-                final_df_list.append(pool_with_A1_Y1_t)  # store them in global list for concatenation at the end
+                final_df_list.append(pool_with_A1_t)  # store them in global list for concatenation at the end
+                
+                # If A=0,
+                # Predict risk of in-icu death with P(I)
+                # If binorm(P(I))=1, then set Y=1 for that ID. 
+                # Kick that ID out which stop simulation for that ID.
+                # Else if binorm(P(I))=0, then continue simulation for that ID (nothing to do here).
+                
+                ids_with_A0_t = pool.loc[pool['A'] == 0, id].unique()    # ids with A=0 at t
+                pool_with_A0_t = pool[pool[id].isin(ids_with_A0_t)]     # pool only with A=0 at t
+                
+                pool_with_A0_t.sort_values([id, time_name], ascending=[True, True], inplace=True) # Sort so that we pick lates t where A=0 at next step.
+                pool_with_A0_t_t = pool_with_A0_t[pool_with_A0_t[time_name] == t].copy() # Pick current time point where A=0.
+
+                # Compute P(in-icu mortality).
+                pre_i = I_fit.predict(pool_with_A0_t_t)
+                I_t = pre_i.apply(binorm_sample)
+                pool_with_A0_t_t['I_hat'] = I_t
+
+                ids_with_I1_t = pool_with_A0_t_t.loc[pool_with_A0_t_t['I_hat'] == 1, id].unique()    # ids with I=1 at t (A=0 as well)
+
+                pool_with_I1_t = pool[pool[id].isin(ids_with_I1_t)]     # pool only with I=1, at t (A=0 as well)
+                pool = pool[~pool[id].isin(ids_with_I1_t)]  # Remove ids with I=1, t (A=0) from pool
+
+                # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
+                pool_with_I1_t['Py'] = 1
+
+                final_df_list.append(pool_with_I1_t)  # store them in global list for concatenation at the end
+
 
     # Changes for NC and dynamic
     # Concatenate all dataframes at different t into a single DataFrame pool
@@ -568,7 +613,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
     pool = pool[pool[time_name] >= 0]
 
-    if outcome_type == 'survival':
+    '''if outcome_type == 'survival':
         if competing and not compevent_cens:
             pool['cumprob0'] = pool.groupby([id])['prob0'].cumprod()
             pool['prob_D0'] = 1 - pool['prob_D']
@@ -588,7 +633,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
     if outcome_type == 'continuous_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Ey'].mean()
-        g_result = pool.groupby(id).tail(1)['Ey'].mean()
+        g_result = pool.groupby(id).tail(1)['Ey'].mean()'''
 
     if outcome_type == 'binary_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Py'].mean()

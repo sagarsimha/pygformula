@@ -34,7 +34,7 @@ import os
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from lifelines import CoxPHFitter
-from .fit import fit_covariate_model, fit_ymodel, fit_compevent_model, fit_censor_model
+from .fit import fit_covariate_model, fit_ymodel, fit_compevent_model, fit_censor_model, fit_I_model
 from .histories import update_precoded_history, update_custom_history
 from .simulate import simulate
 from .bootstrap import Bootstrap
@@ -277,6 +277,8 @@ class ParametricGformula:
                  seed=None,
                  save_path=None,
                  save_results=False,
+                 I_model=None,
+                 I_name=None,
                  **interventions
                  ):
 
@@ -326,6 +328,8 @@ class ParametricGformula:
         self.seed = seed
         self.save_path = save_path
         self.save_results = save_results
+        self.I_model = I_model
+        self.I_name = I_name
 
         self.set_seed()
         self.origin_obs_data = self.obs_data.copy()
@@ -472,7 +476,9 @@ class ParametricGformula:
                 'ncores': self.ncores,
                 'ref_int': self.ref_int,
                 'ci_method': self.ci_method,
-                'seed': self.seed
+                'seed': self.seed,
+                'I_model': self.I_model,
+                'I_name': self.I_name
                  }
             save_config(self.save_path, **config_parameters_dict)
 
@@ -527,6 +533,16 @@ class ParametricGformula:
             bounds = None
             rmses = None
 
+        # Model for in-icu death (I)
+        I_fit, I_model_coeffs, I_model_stderrs, I_model_vcovs, I_model_fits_summary = \
+            fit_I_model(I_model=self.I_model, I_name=self.I_name,
+                                time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits)
+        model_coeffs.update(I_model_coeffs)
+        model_stderrs.update(I_model_stderrs)
+        model_vcovs.update(I_model_vcovs)
+        model_fits_summary.update(I_model_fits_summary)
+        all_model_fits.update({'I': I_fit})
+        
         outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
             fit_ymodel(ymodel=self.ymodel, outcome_type=self.outcome_type,
                               outcome_name=self.outcome_name, ymodel_fit_custom=self.ymodel_fit_custom,
@@ -576,52 +592,6 @@ class ParametricGformula:
             data = pd.concat(new_df, ignore_index=True)
         else:
             data = self.obs_data
-
-        # Balance the population at 'L0' to be uniformly distributed w.r.t their LOS.
-        '''if self.n_simul != len(np.unique(self.obs_data[self.id])):
-            data_list = dict(list(self.obs_data.groupby(self.id, group_keys=True)))
-            ids = np.unique(self.obs_data[self.id])
-
-            # Step 1: Compute LOS (Length of Stay) for each id
-            los_per_id = self.obs_data.groupby(self.id)['t0'].max() + 1  # +1 since t0 starts at 0
-
-            # Step 2: Automatically split LOS into quantile-based bins
-            n_quantiles = 4  # you can adjust this (e.g., 4 = quartiles)
-            quantile_bins = pd.qcut(los_per_id, q=n_quantiles, labels=False, duplicates='drop')  # labels: 0, 1, 2, 3
-
-            # Step 3: Organize ids into quantile groups
-            los_strata = {}
-            for quantile_label in np.unique(quantile_bins):
-                los_strata[quantile_label] = los_per_id.index[quantile_bins == quantile_label].tolist()
-
-            # Step 4: Sample proportionally from each LOS quantile group
-            sampled_ids = []
-            n_per_stratum = self.n_simul // len(los_strata)
-
-            for label, id_list in los_strata.items():
-                if len(id_list) >= n_per_stratum:
-                    sampled = np.random.choice(id_list, n_per_stratum, replace=False)
-                else:
-                    sampled = np.random.choice(id_list, n_per_stratum, replace=True)  # allow replacement if few
-                sampled_ids.extend(sampled)
-
-            # Step 5: If mismatch due to rounding, fix it
-            if len(sampled_ids) > self.n_simul:
-                sampled_ids = np.random.choice(sampled_ids, self.n_simul, replace=False)
-
-            # Step 6: Rebuild new dataset
-            new_df = []
-            for index, new_id in enumerate(sampled_ids):
-                new_id_df = data_list[new_id].copy()
-                new_id_df[self.id] = index  # reset id
-                new_df.append(new_id_df)
-
-            data = pd.concat(new_df, ignore_index=True)
-
-        else:
-            data = self.obs_data'''
-
-        #data.to_csv('before_simulating.csv', index=False)
 
         print('start simulating.')
         if self.parallel:
@@ -700,7 +670,8 @@ class ParametricGformula:
                                            baselags=self.baselags, below_zero_indicator=self.below_zero_indicator,
                                            restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                            compevent_restrictions=self.compevent_restrictions,
-                                           sim_trunc=self.sim_trunc
+                                           sim_trunc=self.sim_trunc,
+                                           I_fit=I_fit, I_name=self.I_name,
                                            )
 
                 self.all_simulate_results.append(simulate_result)
