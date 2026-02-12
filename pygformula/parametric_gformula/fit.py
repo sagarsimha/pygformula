@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import pandas as pd
 import math
@@ -557,6 +558,282 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
 
     return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
+
+# Fitting a model for post-discharge mortality with hazards until K
+def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name, obs_data,
+               competing, compevent_name, return_fits, zrestrictions):
+    """
+    This is a function to fit parametric model for the outcome (post-discharge mortality with hazards until K).
+
+    Parameters
+    ----------
+    zmodel: Str
+        A string specifying the model statement for the outcome variable.
+
+    outcome_type: Str
+        A string specifying the "type" of outcome. The possible "types" are: "survival", "continuous_eof", and "binary_eof".
+
+    outcome_name: Str
+        A string specifying the name of the outcome variable in obs_data.
+
+    zmodel_fit_custom: Function
+        A user-specified fit function for the outcome variable.
+
+    time_name: Str
+        A string specifying the name of the time variable in obs_data.
+
+    obs_data: DataFrame
+        Observed data or resampled data used to estimate the parameters of the outcome model.
+
+    competing: Bool
+        A boolean value indicating if there is a competing event in obs_data.
+
+    compevent_name: Str
+        A string specifying the name of the competing event variable in obs_data. Only applicable for survival outcomes.\
+
+    return_fits: Bool
+        A boolean value indicating whether to get the coefficients, standard errors, variance-covariance matrices of the
+        fitted outcome model.
+
+    zrestrictions: List
+        List of lists. For each inner list, its first entry is a dictionary whose key is the conditions which
+        should be True when the outcome is modeled, the second entry is the value that is set to the outcome during
+        simulation when the conditions in the first entry are not True.
+
+    Returns
+    -------
+    outcome_fit: Class
+        A class object of the fitted model for outcome.
+
+    model_coeffs: Dict
+        A dictionary where the key is the outcome name and the value is the parameter estimates of the fitted outcome model.
+
+    model_stderrs: Dict
+        A dictionary where the key is the outcome name and the value is the standard errors of the parameter estimates
+        of the fitted outcome model.
+
+    model_vcovs: Dict
+        A dictionary where the key is the outcome name and the value is the variance-covariance matrices of the parameter
+        estimates of the fitted outcome model.
+
+    model_fits_summary: Dict
+        A class object that contains the summary information of the fitted outcome model.
+
+    """
+    model_coeffs = {}
+    model_stderrs = {}
+    model_vcovs = {}
+    model_fits_summary = {}
+
+    sub_data = obs_data[obs_data[time_name] >= 0]
+    
+    # Create a version of obs_data that has exapnded rows after discharge until death/end of follow-up K. Stays with in-icu death remain unchanged.
+    expanded_sub_data = expand_post_discharge_Z_fast(sub_data, assume_types_ok=True)
+    fit_data = expanded_sub_data
+
+    '''if zrestrictions is not None:
+        for restriction in zrestrictions:
+            conditions = restriction[0]
+            for cond_var, condition in conditions.items():
+                mask = fit_data[cond_var].apply(condition)
+                fit_data = fit_data[mask]'''
+
+    '''if competing:
+        fit_data = fit_data[(fit_data[outcome_name].notna()) & (fit_data[compevent_name] == 0)]
+    else:
+        fit_data = fit_data[fit_data[outcome_name].notna()]'''
+
+    '''if outcome_type == 'survival' or outcome_type == 'binary_eof':
+        if zmodel_fit_custom is not None:
+            outcome_fit = zmodel_fit_custom(zmodel, fit_data)
+        else:
+            outcome_fit = smf.glm(zmodel, fit_data, family=sm.families.Binomial()).fit()
+    elif outcome_type == 'continuous_eof':
+        if zmodel_fit_custom is not None:
+            outcome_fit = zmodel_fit_custom(zmodel, fit_data)
+        else:
+            outcome_fit = smf.glm(zmodel, data=fit_data, family=sm.families.Gaussian()).fit()'''
+
+    fit_data_Z = fit_data[fit_data["A"] == 1].copy()
+
+    # discharge time per stay (first A==1 row)
+    td = (fit_data_Z[fit_data_Z["A"] == 1]
+        .sort_values(["admission_id","t0"])
+        .groupby("admission_id")["t0"].min())
+
+    fit_data_Z["tD"] = fit_data_Z["admission_id"].map(td)
+    fit_data_Z["tsd"] = fit_data_Z["t0"] - fit_data_Z["tD"]  # time since discharge
+
+    zmodel_t = zmodel + " + tsd + tD"
+
+    # Hazard model for post-discharge mortality until K, restricted to rows with A=1 (discharged)
+    z_outcome_fit = smf.glm(zmodel_t, data=fit_data_Z, family=sm.families.Binomial()).fit()
+
+    if return_fits and not zmodel_fit_custom:
+        model_coeffs[outcome_name] = z_outcome_fit.params
+        model_stderrs[outcome_name] = z_outcome_fit.bse
+        model_vcovs[outcome_name] = z_outcome_fit.cov_params()
+        model_fits_summary[outcome_name] = z_outcome_fit.summary()
+
+    return z_outcome_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
+
+
+# Expanding dataset for post-discharge hazards until K (e.g. 90 days in 12h grids -> t_max=179)
+def expand_post_discharge_Z_fast(
+    df: pd.DataFrame,
+    id_col: str = "admission_id",
+    A_col: str = "A",
+    t_col: str = "t0",
+    grid_end_col: str = "grid_end",          # Timedelta-like or string "0 days 12:00:00"
+    ref_time_col: str = "ref_time",          # datetime-like
+    Z_col: str = "Z",
+    death_td_col: str = "death_time_from_intime",  # preferred Timedelta since intime
+    death_abs_col: str = "death_abs_time",         # fallback absolute datetime
+    intime_col: str = "intime",                    # needed if using death_abs_col
+    t_max: int = 179,                              # 90 days in 12h grids
+    step_hours: int = 12,
+    assume_types_ok: bool = False,                 # set True if you've already coerced dtypes earlier
+) -> pd.DataFrame:
+    """
+    Expand discharged stays to fixed follow-up (t_max) using post-discharge discrete-time hazards.
+
+    Rules implemented:
+      - Z = NaN for all A==0 rows
+      - Only stays with a discharge row (first A==1) are expanded
+      - Expansion rows start at tD+1 (retain discharge row)
+      - Freeze all columns from discharge row, except t/grid_end/ref_time which advance by 12h
+      - Map death time to grid: t_death = ceil(death_td / 12h) - 1
+      - If t_death == tD: discharge row Z=1 else discharge row Z=0
+      - Expanded rows have Z=0, except Z=1 at t_death (if t_death > tD and within follow-up)
+      - Expand stops at min(t_death, t_max) or t_max if no death/after follow-up
+    """
+
+    out = df.copy()
+
+    # Ensure Z exists
+    if Z_col not in out.columns:
+        out[Z_col] = np.nan
+
+    # --- Coerce types (costly; skip if you already did this upstream) ---
+    if not assume_types_ok:
+        out[t_col] = out[t_col].astype(int)
+        out[grid_end_col] = pd.to_timedelta(out[grid_end_col])
+        out[ref_time_col] = pd.to_datetime(out[ref_time_col], errors="coerce")
+
+        if death_td_col in out.columns:
+            out[death_td_col] = pd.to_timedelta(out[death_td_col], errors="coerce")
+        if (death_abs_col in out.columns) and (intime_col in out.columns):
+            out[death_abs_col] = pd.to_datetime(out[death_abs_col], errors="coerce")
+            out[intime_col] = pd.to_datetime(out[intime_col], errors="coerce")
+
+    step = pd.Timedelta(hours=step_hours)
+    step_ns = step.value  # nanoseconds per step
+
+    # ---------------------------
+    # 1) Identify discharged stays
+    # ---------------------------
+    discharged = out[out[A_col] == 1]
+    if discharged.empty:
+        # No discharges: only enforce pre-discharge Z=NaN and return
+        out.loc[out[A_col] == 0, Z_col] = np.nan
+        return out.sort_values([id_col, t_col]).reset_index(drop=True)
+
+    # First discharge row per stay (fast): index of min t among A==1 rows
+    first_discharge_idx = discharged.groupby(id_col)[t_col].idxmin()
+    disc = out.loc[first_discharge_idx].copy()  # one row per discharged stay
+
+    # Discharge time index tD
+    tD = disc[t_col].astype(int).to_numpy()
+
+    # -----------------------------------
+    # 2) Compute death time since intime
+    # -----------------------------------
+    # Preferred: death_time_from_intime (Timedelta)
+    if death_td_col in disc.columns:
+        death_td = disc[death_td_col]
+    # Fallback: death_abs_time - intime (Timedelta)
+    elif (death_abs_col in disc.columns) and (intime_col in disc.columns):
+        death_td = disc[death_abs_col] - disc[intime_col]
+    else:
+        death_td = pd.Series(pd.NaT, index=disc.index, dtype="timedelta64[ns]")
+
+    # Map death_td -> t_death = ceil(death_td/step) - 1, missing -> -1
+    valid_death = death_td.notna().to_numpy()
+    t_death = np.full(len(disc), -1, dtype=int)
+
+    if valid_death.any():
+        a_ns = death_td.view("int64").to_numpy()[valid_death]  # nanoseconds since intime
+        # integer ceil division: ceil(a/b) = (a + b - 1)//b for a>0
+        q = (a_ns + step_ns - 1) // step_ns
+        td_tmp = (q - 1).astype(int)
+        td_tmp = np.maximum(td_tmp, 0)  # deaths in first interval -> 0
+        t_death[valid_death] = td_tmp
+
+    # If death occurs before discharge, ignore it for post-discharge Z (treat as no post-discharge death)
+    t_death = np.where((t_death != -1) & (t_death < tD), -1, t_death)
+
+    # ---------------------------------------
+    # 3) Set Z on the *discharge row itself*
+    # ---------------------------------------
+    # Default: discharge row Z=0
+    disc_Z = np.zeros(len(disc), dtype=int)
+    # If death happens in [tD, tD+1) => t_death == tD => discharge row Z=1
+    disc_Z = np.where((t_death != -1) & (t_death == tD) & (t_death <= t_max), 1, disc_Z)
+
+    # Write discharge-row Z back into the original out dataframe
+    out.loc[disc.index, Z_col] = disc_Z
+
+    # ------------------------------------------
+    # 4) Determine expansion end and row counts
+    # ------------------------------------------
+    # If no death/after follow-up: expand to t_max
+    t_end = np.where(t_death == -1, t_max, np.minimum(t_death, t_max))
+
+    # Expand rows from tD+1 .. t_end inclusive
+    n_expand = np.maximum(t_end - tD, 0)
+
+    mask = n_expand > 0
+    if mask.any():
+        disc2 = disc.loc[mask].copy()
+        n_expand2 = n_expand[mask]
+        tD2 = tD[mask]
+        t_death2 = t_death[mask]
+
+        # Repeat discharge rows by n_expand (vectorized)
+        rep_idx = np.repeat(disc2.index.to_numpy(), n_expand2)
+        expanded = disc2.loc[rep_idx].copy()
+
+        # Per-stay step k = 1..n_expand (vectorized via cumcount)
+        expanded["_k"] = expanded.groupby(id_col).cumcount() + 1
+
+        # Update time columns
+        k = expanded["_k"].to_numpy()
+        expanded[t_col] = expanded[t_col].to_numpy() + k
+        expanded[grid_end_col] = expanded[grid_end_col] + k * step
+        expanded[ref_time_col] = expanded[ref_time_col] + k * step
+
+        # Z for expanded rows: default 0
+        expanded[Z_col] = 0
+
+        # Set Z=1 on death grid if death occurs after discharge (t_death > tD) and within follow-up
+        t_death_rep = np.repeat(t_death2, n_expand2)
+        expanded.loc[
+            (t_death_rep != -1) & (expanded[t_col].to_numpy() == t_death_rep) & (t_death_rep > np.repeat(tD2, n_expand2)),
+            Z_col
+        ] = 1
+
+        expanded.drop(columns=["_k"], inplace=True)
+
+        # Append expanded rows once (fast)
+        out = pd.concat([out, expanded], ignore_index=True)
+
+    # -----------------------------------------
+    # 5) Enforce: while A==0, Z must be NaN
+    # -----------------------------------------
+    out.loc[out[A_col] == 0, Z_col] = np.nan
+
+    # Return sorted (sorting can cost time; drop sort if not needed downstream)
+    return out.sort_values([id_col, t_col]).reset_index(drop=True)
 
 
 

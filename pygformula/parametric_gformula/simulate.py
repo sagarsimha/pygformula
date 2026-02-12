@@ -24,9 +24,94 @@ def truc_sample(mean, rmse, a, b):
     return truncnorm.rvs((a - mean) / rmse, (b - mean) / rmse, loc=mean, scale=rmse)
 
 
+def simulate_post_discharge_Z_from_discharge_rows(
+    pool_with_A1_t0_t: pd.DataFrame,
+    z_fit,
+    *,
+    id_col: str = "admission_id",
+    t_col: str = "t",
+    tD_col: str = "t0",          # discharge time stored here
+    K: int = 179,
+    rng: np.random.Generator | None = None,
+) -> pd.Series:
+    """
+    Vectorized post-discharge hazard simulation.
+
+    Inputs
+    ------
+    pool_with_A1_t0_t:
+        DataFrame containing ONLY discharge rows (A==1) for discharged admissions.
+        Must contain id_col and tD_col (discharge time index). Other columns are frozen covariates.
+
+    z_fit:
+        Fitted discrete-time hazard model with .predict(df)->probabilities for each row.
+
+    Returns
+    -------
+    pd.Series of realized outcome Py (0/1), indexed like pool_with_A1_t0_t and in the same order.
+    (IDs/order preserved.)
+    """
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    if pool_with_A1_t0_t.empty:
+        # preserve dtype and index behavior
+        return pd.Series([], index=pool_with_A1_t0_t.index, dtype="int64", name="Py")
+
+    disc = pool_with_A1_t0_t.copy()
+    disc["_row_order"] = np.arange(len(disc), dtype=int)  # preserve input order
+
+    tD = disc[tD_col].astype(int).to_numpy()
+    n = len(disc)
+
+    # number of post-discharge intervals to simulate (including tD..K)
+    n_steps = (K - tD + 1)
+    n_steps = np.maximum(n_steps, 0)  # if tD>K, simulate 0 steps
+
+    # Build person-period post-discharge rows by repeating discharge rows
+    rep_idx = np.repeat(np.arange(n, dtype=int), n_steps)
+    post = disc.iloc[rep_idx].copy()
+
+    # Create interval times for each repeated block: t = tD, tD+1, ..., K
+    start = np.repeat(tD, n_steps)
+    # within-block offset 0..(n_steps-1)
+    offset = np.arange(len(post)) - np.repeat(np.cumsum(n_steps) - n_steps, n_steps)
+    post[t_col] = start + offset
+    post["tD"] = start
+    post["tsd"] = post[t_col].to_numpy() - post["tD"].to_numpy()  # time since discharge
+
+    # Predict hazards per interval
+    p = np.asarray(z_fit.predict(post), dtype=float)
+    p = np.clip(p, 0.0, 1.0)
+
+    # Simulate Bernoulli per interval
+    u = rng.uniform(size=len(p))
+    z = (u < p).astype(np.int8)
+
+    # Determine first event per admission (or none)
+    # We need, per admission, whether any z==1 occurred in its block.
+    # Create group boundaries
+    ends = np.cumsum(n_steps)
+    starts = ends - n_steps
+
+    Py = np.zeros(n, dtype=np.int8)
+    for i in range(n):
+        if n_steps[i] == 0:
+            Py[i] = 0
+            continue
+        block = z[starts[i]:ends[i]]
+        Py[i] = 1 if block.any() else 0
+
+    # Return series aligned to original input order/index
+    Py_series = pd.Series(Py, index=pool_with_A1_t0_t.index, name="Py")
+    return Py_series
+
+
+
 def simulate(seed, time_points, time_name, id, obs_data, basecovs,
              outcome_type, rmses, bounds, intervention, intervention_function,
-             custom_histvars, custom_histories, covpredict_custom, ymodel_predict_custom, ymodel, outcome_fit, outcome_name,
+             custom_histvars, custom_histories, covpredict_custom, ymodel_predict_custom, ymodel, zmodel, outcome_fit, z_outcome_fit, outcome_name,
              competing, compevent_name, compevent_model, compevent_fit, compevent_cens, trunc_params,
              visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds, baselags, below_zero_indicator,
              restrictions, yrestrictions, compevent_restrictions, covnames, covtypes, covmodels,
@@ -303,9 +388,10 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 # Predict Z only on the discharge rows at the current time t
                 pool_with_A1_t0_t = pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t].copy()
 
-                # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
-                pre_z = outcome_fit.predict(pool_with_A1_t0_t)
-                Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
+                # Compute P(post-discharge hazard), i.e., P(Z).
+                    #pre_z = outcome_fit.predict(pool_with_A1_t0_t)
+                    #Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
+                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_fit)
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
@@ -568,11 +654,12 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A1_t_t = pool_with_A1_t.loc[pool_with_A1_t[time_name] == t].copy()
                 
                 # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
-                pre_z = outcome_fit.predict(pool_with_A1_t_t)
-                Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
+                #pre_z = outcome_fit.predict(pool_with_A1_t_t)
+                #Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
+                Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit)
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is end of follow-up since A=1.
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is the time of discharge.
                     pool['Py'] = np.nan
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
