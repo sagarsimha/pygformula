@@ -762,7 +762,7 @@ def expand_post_discharge_Z_fast(
     t_death = np.full(len(disc), -1, dtype=int)
 
     if valid_death.any():
-        a_ns = death_td.view("int64").to_numpy()[valid_death]  # nanoseconds since intime
+        a_ns = death_td.astype("int64").to_numpy()[valid_death]  # nanoseconds since intime
         # integer ceil division: ceil(a/b) = (a + b - 1)//b for a>0
         q = (a_ns + step_ns - 1) // step_ns
         td_tmp = (q - 1).astype(int)
