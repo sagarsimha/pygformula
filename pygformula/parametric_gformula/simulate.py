@@ -391,7 +391,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge hazard), i.e., P(Z).
                     #pre_z = outcome_fit.predict(pool_with_A1_t0_t)
                     #Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_fit)
+                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit)
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
