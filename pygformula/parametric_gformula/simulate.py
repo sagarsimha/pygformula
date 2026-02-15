@@ -23,7 +23,6 @@ def norm_sample(mean, rmse, simul_rng):
 def truc_sample(mean, rmse, a, b):
     return truncnorm.rvs((a - mean) / rmse, (b - mean) / rmse, loc=mean, scale=rmse)
 
-
 def simulate_post_discharge_Z_from_discharge_rows(
     pool_with_A1_t0_t: pd.DataFrame,
     z_fit,
