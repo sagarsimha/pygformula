@@ -314,8 +314,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t) # does intervention and new_df is updated within
 
             # Compulsory discharge at "time_points" for static.
-            if (intervention_function == static) and (t == time_points - 1):
-                new_df.loc[new_df[time_name] == t, 'A'] = 1
+            #if (intervention_function == static) and (t == time_points - 1):
+            #    new_df.loc[new_df[time_name] == t, 'A'] = 1
 
             pool.loc[pool[time_name] == t] = new_df
             if covnames is not None:
@@ -566,8 +566,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
             
             # Compulsory discharge at "time_points" for static.
-            if (intervention_function == static) and (t == time_points - 1):
-                new_df.loc[new_df[time_name] == t, 'A'] = 1
+            #if (intervention_function == static) and (t == time_points - 1):
+            #    new_df.loc[new_df[time_name] == t, 'A'] = 1
             
 
             pool.loc[pool[time_name] == t] = new_df
