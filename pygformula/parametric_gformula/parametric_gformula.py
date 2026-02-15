@@ -248,6 +248,8 @@ class ParametricGformula:
                  covpredict_custom=None,
                  ymodel_fit_custom=None,
                  ymodel_predict_custom=None,
+                 zmodel_fit_custom=None,
+                 zmodel_predict_custom=None,
                  nsamples=0,
                  compevent_name=None,
                  compevent_model=None,
@@ -300,6 +302,8 @@ class ParametricGformula:
         self.covpredict_custom = covpredict_custom
         self.ymodel_fit_custom = ymodel_fit_custom
         self.ymodel_predict_custom = ymodel_predict_custom
+        self.zmodel_fit_custom = zmodel_fit_custom
+        self.zmodel_predict_custom = zmodel_predict_custom
         self.nsamples = nsamples
         self.compevent_name = compevent_name
         self.compevent_model = compevent_model
@@ -550,7 +554,7 @@ class ParametricGformula:
         # Model for post-discharge mortality (Z)
         z_outcome_fit, zmodel_coeffs, zmodel_stderrs, zmodel_vcovs, zmodel_fits_summary = \
             fit_zmodel(zmodel=self.zmodel, outcome_type=self.outcome_type,
-                              outcome_name=self.outcome_name, zmodel_fit_custom=None, #self.zmodel_fit_custom,
+                              outcome_name=self.outcome_name, zmodel_fit_custom=self.zmodel_fit_custom,
                               time_name=self.time_name, obs_data=self.obs_data,
                               competing=self.competing, compevent_name=self.compevent_name, return_fits=self.model_fits,
                               zrestrictions = None) #self.zrestrictions)
@@ -638,7 +642,9 @@ class ParametricGformula:
                                         else self.intervention_dicts[intervention_name][0][1]
                                     ),
                                    custom_histvars = self.custom_histvars, custom_histories=self.custom_histories,
-                                   covpredict_custom = self.covpredict_custom, ymodel_predict_custom=self.ymodel_predict_custom,
+                                   covpredict_custom = self.covpredict_custom, 
+                                   ymodel_predict_custom=self.ymodel_predict_custom,
+                                   zmodel_predict_custom=self.zmodel_predict_custom,
                                    zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
                                    ymodel = self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
                                    competing=self.competing, compevent_name=self.compevent_name,
@@ -679,6 +685,7 @@ class ParametricGformula:
                                            custom_histvars=self.custom_histvars, custom_histories=self.custom_histories,
                                            covpredict_custom=self.covpredict_custom,
                                            ymodel_predict_custom=self.ymodel_predict_custom,
+                                           zmodel_predict_custom=self.zmodel_predict_custom,
                                            zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
                                            ymodel=self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
                                            competing=self.competing, compevent_name=self.compevent_name,
@@ -790,6 +797,8 @@ class ParametricGformula:
                                                  zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
                                                  ymodel_fit_custom=self.ymodel_fit_custom,
                                                  ymodel_predict_custom=self.ymodel_predict_custom,
+                                                 zmodel_fit_custom=self.zmodel_fit_custom,
+                                                 zmodel_predict_custom=self.zmodel_predict_custom,
                                                  outcome_type=self.outcome_type, outcome_name=self.outcome_name,
                                                  competing=self.competing, compevent_name=self.compevent_name,
                                                  compevent_model=self.compevent_model, compevent_cens=self.compevent_cens,
@@ -822,6 +831,8 @@ class ParametricGformula:
                                                  zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
                                                  ymodel_fit_custom=self.ymodel_fit_custom,
                                                  ymodel_predict_custom=self.ymodel_predict_custom,
+                                                 zmodel_fit_custom=self.zmodel_fit_custom,
+                                                 zmodel_predict_custom=self.zmodel_predict_custom,
                                                  outcome_type=self.outcome_type, outcome_name=self.outcome_name,
                                                  competing=self.competing, compevent_name=self.compevent_name,
                                                  compevent_model=self.compevent_model, compevent_cens=self.compevent_cens,

@@ -27,6 +27,8 @@ def truc_sample(mean, rmse, a, b):
 def simulate_post_discharge_Z_from_discharge_rows(
     pool_with_A1_t0_t: pd.DataFrame,
     z_fit,
+    zmodel,
+    zmodel_predict_custom,
     *,
     id_col: str = "admission_id",
     t_col: str = "t",
@@ -82,7 +84,9 @@ def simulate_post_discharge_Z_from_discharge_rows(
     post["tsd"] = post[t_col].to_numpy() - post["tD"].to_numpy()  # time since discharge
 
     # Predict hazards per interval
-    p = np.asarray(z_fit.predict(post), dtype=float)
+    #p = np.asarray(z_fit.predict(post), dtype=float)
+    p = np.asarray(zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_fit), dtype=float)
+    
     p = np.clip(p, 0.0, 1.0)
 
     # Simulate Bernoulli per interval
@@ -111,7 +115,13 @@ def simulate_post_discharge_Z_from_discharge_rows(
 
 def simulate(seed, time_points, time_name, id, obs_data, basecovs,
              outcome_type, rmses, bounds, intervention, intervention_function,
-             custom_histvars, custom_histories, covpredict_custom, ymodel_predict_custom, ymodel, zmodel, outcome_fit, z_outcome_fit, outcome_name,
+             custom_histvars, custom_histories, covpredict_custom, 
+             ymodel_predict_custom, 
+             zmodel_predict_custom, 
+             ymodel, 
+             zmodel, 
+             outcome_fit, z_outcome_fit, 
+             outcome_name,
              competing, compevent_name, compevent_model, compevent_fit, compevent_cens, trunc_params,
              visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds, baselags, below_zero_indicator,
              restrictions, yrestrictions, compevent_restrictions, covnames, covtypes, covmodels,
@@ -391,7 +401,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge hazard), i.e., P(Z).
                     #pre_z = outcome_fit.predict(pool_with_A1_t0_t)
                     #Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit)
+                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom)
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
@@ -656,7 +666,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
                 #pre_z = outcome_fit.predict(pool_with_A1_t_t)
                 #Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit)
+                Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom)
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is the time of discharge.
