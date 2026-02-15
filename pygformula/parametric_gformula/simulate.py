@@ -488,7 +488,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                         elif covtypes[k] == 'bounded normal':
                             estimated_mean = covariate_fits[cov].predict(new_df)
-                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov])
+                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             prediction = prediction.apply(lambda x: x * (bounds[cov][1] - bounds[cov][0]) + bounds[cov][0])
                             prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
                             prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
