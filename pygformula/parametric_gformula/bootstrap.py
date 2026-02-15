@@ -19,7 +19,7 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
               outcome_type, outcome_name, competing, compevent_name, compevent_model, compevent_cens,
               boot_diag, trunc_params, visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds,
               below_zero_indicator, baselags, restrictions, yrestrictions, compevent_restrictions, sim_trunc,
-              I_fit, I_name):
+              I_model, I_fit, I_name):
     """
     This is an internal function to get the results of parametric g-formula for each bootstrap sample.
 

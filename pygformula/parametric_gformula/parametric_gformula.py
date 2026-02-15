@@ -825,7 +825,7 @@ class ParametricGformula:
                                                  restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                                  compevent_restrictions=self.compevent_restrictions,
                                                  sim_trunc=self.sim_trunc,
-                                                 I_fit=I_fit, I_name=self.I_name
+                                                 I_model=self.I_model, I_fit=I_fit, I_name=self.I_name
                                         )
                      for i in tqdm(range(self.nsamples), desc='Bootstrap progress'))
                 )
@@ -860,7 +860,7 @@ class ParametricGformula:
                                                  restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                                  compevent_restrictions=self.compevent_restrictions,
                                                  sim_trunc=self.sim_trunc,
-                                                 I_fit=I_fit, I_name=self.I_name
+                                                 I_model=self.I_model, I_fit=I_fit, I_name=self.I_name
                                                  )
 
                     boot_results_dicts.append(boot_result_dict)
