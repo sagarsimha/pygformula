@@ -15,7 +15,7 @@ from ..interventions import static
 import string
 
 def binorm_sample(simprob, simul_rng):
-    return simul_rng.binomial(n=1, p=prob, size=1)[0]
+    return simul_rng.binomial(n=1, p=simprob, size=1)[0]
 
 def norm_sample(mean, rmse, simul_rng):
     return simul_rng.normal(loc=mean, scale=rmse, size=1)[0]
