@@ -670,7 +670,8 @@ class ParametricGformula:
                                    baselags=self.baselags, below_zero_indicator=self.below_zero_indicator,
                                    restrictions = self.restrictions, yrestrictions=self.yrestrictions,
                                    compevent_restrictions = self.compevent_restrictions,
-                                   sim_trunc=self.sim_trunc)
+                                   sim_trunc=self.sim_trunc, 
+                                   I_fit=I_fit, I_name=self.I_name)
                  for intervention_name in self.int_descript)
             )
         else:
@@ -823,7 +824,8 @@ class ParametricGformula:
                                                  below_zero_indicator=self.below_zero_indicator, baselags=self.baselags,
                                                  restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                                  compevent_restrictions=self.compevent_restrictions,
-                                                 sim_trunc=self.sim_trunc
+                                                 sim_trunc=self.sim_trunc,
+                                                 I_fit=I_fit, I_name=self.I_name
                                         )
                      for i in tqdm(range(self.nsamples), desc='Bootstrap progress'))
                 )
@@ -857,7 +859,8 @@ class ParametricGformula:
                                                  below_zero_indicator=self.below_zero_indicator, baselags=self.baselags,
                                                  restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                                  compevent_restrictions=self.compevent_restrictions,
-                                                 sim_trunc=self.sim_trunc
+                                                 sim_trunc=self.sim_trunc,
+                                                 I_fit=I_fit, I_name=self.I_name
                                                  )
 
                     boot_results_dicts.append(boot_result_dict)
