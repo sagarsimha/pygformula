@@ -320,8 +320,8 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
             # Changed for NC. Compulsory discharge at "time_points"
             #if (intervention_function != static) and (t == time_points - 1):
-            if (t == time_points - 1):
-                new_df.loc[new_df[time_name] == t, 'A'] = 1
+            #if (t == time_points - 1):
+            #    new_df.loc[new_df[time_name] == t, 'A'] = 1
 
             pool.loc[pool[time_name] == t] = new_df
             if covnames is not None:
@@ -571,8 +571,8 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t)
 
             # Changed for NC. Compulsory discharge at "time_points"
-            if (intervention_function != static) and (t == time_points - 1):
-                new_df.loc[new_df[time_name] == t, 'A'] = 1
+            #if (intervention_function != static) and (t == time_points - 1):
+            #    new_df.loc[new_df[time_name] == t, 'A'] = 1
 
             pool.loc[pool[time_name] == t] = new_df
             if covnames is not None:
@@ -742,6 +742,12 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
     if outcome_type == 'binary_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Py'].mean()
+
+        # --- Administrative end-of-follow-up: if a subject is still in ICU (A=0) and never had Py assigned,
+        # declare them a survivor at K by setting Py=0 on their final simulated row only.
+        last_idx = pool.groupby(id, sort=False)[time_name].idxmax()
+        pool.loc[last_idx, 'Py'] = pool.loc[last_idx, 'Py'].fillna(0)
+        
         g_result = pool.groupby(id).tail(1)['Py'].mean()
 
     return {'g_result': g_result, 'pool': pool}
