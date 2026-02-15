@@ -619,7 +619,7 @@ class ParametricGformula:
         if self.n_simul != len(np.unique(self.obs_data[self.id])):
             data_list = dict(list(self.obs_data.groupby(self.id, group_keys=False)))
             ids = np.unique(self.obs_data[self.id])
-            new_ids = np.random.choice(ids, self.n_simul, replace=False) # replace = True for sampling with replacement. If #adm_id < #n_sim, replace=False will fail.
+            new_ids = self.simul_rng.choice(ids, self.n_simul, replace=False) # replace = True for sampling with replacement. If #adm_id < #n_sim, replace=False will fail.
             new_df = []
             for index, new_id in enumerate(new_ids):
                 new_id_df = data_list[new_id].copy()
