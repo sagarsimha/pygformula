@@ -14,10 +14,10 @@ from ..interventions import static
 
 import string
 
-def binorm_sample(simul_rng, simprob):
+def binorm_sample(simprob, simul_rng):
     return simul_rng.binomial(n=1, p=prob, size=1)[0]
 
-def norm_sample(simul_rng, mean, rmse):
+def norm_sample(mean, rmse, simul_rng):
     return simul_rng.normal(loc=mean, scale=rmse, size=1)[0]
 
 def truc_sample(mean, rmse, a, b):
@@ -424,7 +424,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Compute P(in-icu mortality).
                 pre_i = I_fit.predict(pool_with_A0_t0_t)
-                I_t0 = pre_i.apply(binorm_sample)
+                I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t0_t['I_hat'] = I_t0
 
                 ids_with_I1_t0 = pool_with_A0_t0_t.loc[pool_with_A0_t0_t['I_hat'] == 1, id].unique()    # ids with I=1 at t=0 (A=0 as well)
@@ -460,7 +460,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                     if covmodels[k] != 'NA':
                         if visit_names and cov in visit_names: ### assign values for visit indicator
                             estimated_mean = covariate_fits[cov].predict(new_df)
-                            prediction = estimated_mean.apply(binorm_sample)
+                            prediction = estimated_mean.apply(binorm_sample, simul_rng=simul_rng)
                             max_visit = max_visits[visit_names.index(cov)]
                             ts_visit_name = ts_visit_names[visit_names.index(cov)]
                             new_df[cov] = np.where(new_df['lag1_{0}'.format(ts_visit_name)] < max_visit, prediction, 1)
@@ -468,12 +468,12 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                         elif covtypes[k] == 'binary':
                             estimated_mean = covariate_fits[cov].predict(new_df)
-                            prediction = estimated_mean.apply(binorm_sample) # N values are generated
+                            prediction = estimated_mean.apply(binorm_sample, simul_rng=simul_rng) # N values are generated
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'normal':
                             estimated_mean = covariate_fits[cov].predict(new_df)
-                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov])
+                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             if sim_trunc:
                                 prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
                                 prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
@@ -497,9 +497,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                         elif covtypes[k] == 'zero-inflated normal':
                             estimated_indicator_mean = covariate_fits[cov][0].predict(new_df)
-                            indicator = estimated_indicator_mean.apply(binorm_sample)
+                            indicator = estimated_indicator_mean.apply(binorm_sample, simul_rng=simul_rng)
                             estimated_mean = covariate_fits[cov][1].predict(new_df)
-                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov])
+                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             nonzero_predict = prediction.apply(lambda x: math.exp(x))
                             prediction = indicator * nonzero_predict
                             prediction = np.where((prediction < bounds[cov][0]) & (indicator == 1), bounds[cov][0], prediction)
@@ -526,7 +526,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                         elif covtypes[k] == 'absorbing':
                             predict_prob = covariate_fits[cov].predict(new_df)
-                            prediction = predict_prob.apply(binorm_sample)
+                            prediction = predict_prob.apply(binorm_sample, simul_rng=simul_rng)
                             prediction = np.where(pool.loc[pool[time_name] == t - 1, cov] == 0, prediction, 1)
                             new_df[cov] = prediction
 
@@ -689,7 +689,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Compute P(in-icu mortality).
                 pre_i = I_fit.predict(pool_with_A0_t_t)
-                I_t = pre_i.apply(binorm_sample)
+                I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t_t['I_hat'] = I_t
 
                 ids_with_I1_t = pool_with_A0_t_t.loc[pool_with_A0_t_t['I_hat'] == 1, id].unique()    # ids with I=1 at t (A=0 as well)
