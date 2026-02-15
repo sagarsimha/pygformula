@@ -12,13 +12,13 @@ from ..interventions import intervention_func
 from ..interventions import natural
 from ..interventions import static
 
-import random, string
+import string
 
-def binorm_sample(prob):
-    return np.random.binomial(n=1, p=prob, size=1)[0]
+def binorm_sample(simul_rng, simprob):
+    return simul_rng.binomial(n=1, p=prob, size=1)[0]
 
-def norm_sample(mean, rmse):
-    return np.random.normal(loc=mean, scale=rmse, size=1)[0]
+def norm_sample(simul_rng, mean, rmse):
+    return simul_rng.normal(loc=mean, scale=rmse, size=1)[0]
 
 def truc_sample(mean, rmse, a, b):
     return truncnorm.rvs((a - mean) / rmse, (b - mean) / rmse, loc=mean, scale=rmse)
@@ -29,12 +29,12 @@ def simulate_post_discharge_Z_from_discharge_rows(
     z_fit,
     zmodel,
     zmodel_predict_custom,
+    simul_rng,
     *,
     id_col: str = "admission_id",
     t_col: str = "t",
     tD_col: str = "t0",          # discharge time stored here
     K: int = 179,
-    rng: np.random.Generator | None = None,
 ) -> pd.Series:
     """
     Vectorized post-discharge hazard simulation.
@@ -53,9 +53,6 @@ def simulate_post_discharge_Z_from_discharge_rows(
     pd.Series of realized outcome Py (0/1), indexed like pool_with_A1_t0_t and in the same order.
     (IDs/order preserved.)
     """
-
-    if rng is None:
-        rng = np.random.default_rng()
 
     if pool_with_A1_t0_t.empty:
         # preserve dtype and index behavior
@@ -92,7 +89,7 @@ def simulate_post_discharge_Z_from_discharge_rows(
     p = np.clip(p, 0.0, 1.0)
 
     # Simulate Bernoulli per interval
-    u = rng.uniform(size=len(p))
+    u = simul_rng.uniform(size=len(p))
     z = (u < p).astype(np.int8)
 
     # Determine first event per admission (or none)
@@ -115,7 +112,7 @@ def simulate_post_discharge_Z_from_discharge_rows(
 
 
 
-def simulate(seed, time_points, time_name, id, obs_data, basecovs,
+def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
              outcome_type, rmses, bounds, intervention, intervention_function,
              custom_histvars, custom_histories, covpredict_custom, 
              ymodel_predict_custom, 
@@ -295,7 +292,6 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
 
     """
 
-    np.random.seed(seed)
     if basecovs:
         column_names = [id] + [time_name] + covnames + basecovs if covnames is not None else [id] + [time_name] + basecovs
     else:
@@ -403,7 +399,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge hazard), i.e., P(Z).
                     #pre_z = outcome_fit.predict(pool_with_A1_t0_t)
                     #Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom)
+                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
@@ -487,7 +483,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                             predict_probs = covariate_fits[cov].predict(new_df)
                             predict_probs = np.asarray(predict_probs)
                             categories = pd.Categorical(obs_data[cov]).categories
-                            predict_index = [np.random.choice(len(probs), p=probs) for probs in predict_probs]
+                            predict_index = [simul_rng.choice(len(probs), p=probs) for probs in predict_probs]
                             prediction = [categories[i] for i in predict_index]
                             new_df[cov] = prediction
 
@@ -668,7 +664,7 @@ def simulate(seed, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
                 #pre_z = outcome_fit.predict(pool_with_A1_t_t)
                 #Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom)
+                Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is the time of discharge.

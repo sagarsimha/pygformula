@@ -9,7 +9,7 @@ from ..utils.helper import hr_data_helper, hr_comp_data_helper
 from ..interventions import static
 
 
-def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, covnames,
+def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, covnames,
               basecovs, cov_hist, time_points, n_simul, time_name, id, custom_histvars, custom_histories,
               covmodels, hazardratio, intcomp, covtypes, covfits_custom, covpredict_custom,
               ymodel_fit_custom, ymodel_predict_custom,
@@ -189,11 +189,9 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
 
     """
     try:
-        np.random.seed(boot_seeds[boot_id])
-
         data_list = dict(list(obs_data.groupby(id, group_keys=False)))
         ids = np.unique(obs_data[id])
-        new_ids = np.random.choice(ids, len(ids), replace=True)
+        new_ids = boot_rngs[boot_id].choice(ids, len(ids), replace=True)
 
         new_df = []
         for index, new_id in enumerate(new_ids):
@@ -242,7 +240,7 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
         if n_simul != len(np.unique(resample_data[id])):
             data_list = dict(list(resample_data.groupby(id, group_keys=False)))
             boot_ids = np.unique(resample_data[id])
-            new_boot_ids = np.random.choice(boot_ids, n_simul, replace=True)
+            new_boot_ids = boot_rngs[boot_id].choice(boot_ids, n_simul, replace=True)
 
             new_boot_df = []
             for index, new_id in enumerate(new_boot_ids):
@@ -254,7 +252,7 @@ def Bootstrap(obs_data, boot_id, boot_seeds, int_descript, intervention_dicts, c
         boot_results = []
         boot_pools = []
         for intervention_name in int_descript:
-            boot_result = simulate(seed=boot_seeds[boot_id], 
+            boot_result = simulate(simul_rng=boot_rngs[boot_id], 
                                        
                                        #time_points=time_points, 
                                        time_points=(

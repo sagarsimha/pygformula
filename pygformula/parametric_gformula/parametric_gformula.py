@@ -489,7 +489,7 @@ class ParametricGformula:
                  }
             save_config(self.save_path, **config_parameters_dict)
 
-    def set_seed(self):
+    '''def set_seed(self):
         if self.seed is None:
             self.seed = 1234
         random.seed(self.seed)
@@ -497,7 +497,21 @@ class ParametricGformula:
         # set seeds for simulation and bootstrap sampling
         seeds = random.sample(range(pow(2, 30)), self.nsamples + 1)
         self.simul_seed = seeds[0]
-        self.boot_seeds = seeds[1:]
+        self.boot_seeds = seeds[1:]'''
+
+    def set_seed(self):
+        if self.seed is None:
+            self.seed = 1234
+
+        ss = np.random.SeedSequence(self.seed)
+
+        # Spawn independent child streams
+        child_seqs = ss.spawn(self.nsamples + 1)
+
+        self.simul_rng = np.random.default_rng(child_seqs[0])
+        self.boot_rngs = [
+            np.random.default_rng(s) for s in child_seqs[1:]
+        ]
 
     def update_history(self):
         update_precoded_history(self.obs_data, self.covnames, self.cov_hist, self.covtypes,
@@ -619,7 +633,7 @@ class ParametricGformula:
         if self.parallel:
             self.all_simulate_results = (
                 Parallel(n_jobs=self.ncores)
-                (delayed(simulate)(seed=self.simul_seed, 
+                (delayed(simulate)(simul_rng=self.simul_rng, 
                                    time_points=(
                                         # Determine sim_time_points for each intervention
                                         len(self.intervention_dicts[intervention_name][0][3])
@@ -674,7 +688,7 @@ class ParametricGformula:
                 else:
                     sim_time_points = self.time_points
 
-                simulate_result = simulate(seed=self.simul_seed, time_points=sim_time_points, time_name=self.time_name,
+                simulate_result = simulate(simul_rng=self.simul_rng, time_points=sim_time_points, time_name=self.time_name,
                                            id=self.id, covnames=self.covnames, basecovs=self.basecovs,
                                            covmodels=self.covmodels, covtypes=self.covtypes, cov_hist=self.cov_hist,
                                            covariate_fits=covariate_fits, rmses=rmses, bounds=bounds,
@@ -782,7 +796,7 @@ class ParametricGformula:
             if self.parallel:
                 boot_results_dicts = (
                     Parallel(n_jobs=self.ncores)
-                    (delayed(Bootstrap)(obs_data=self.origin_obs_data, boot_id=i, boot_seeds=self.boot_seeds,
+                    (delayed(Bootstrap)(obs_data=self.origin_obs_data, boot_id=i, boot_rngs=self.boot_rngs,
                                                  int_descript=self.int_descript,
                                                  intervention_dicts = self.intervention_dicts,
                                                  covnames=self.covnames, basecovs=self.basecovs, cov_hist=self.cov_hist,
@@ -816,7 +830,7 @@ class ParametricGformula:
             else:
                 boot_results_dicts = []
                 for i in tqdm(range(self.nsamples), desc='Bootstrap progress'):
-                    boot_result_dict = Bootstrap(obs_data=self.origin_obs_data, boot_id=i, boot_seeds=self.boot_seeds,
+                    boot_result_dict = Bootstrap(obs_data=self.origin_obs_data, boot_id=i, boot_rngs=self.boot_rngs,
                                                  int_descript=self.int_descript,
                                                  intervention_dicts=self.intervention_dicts,
                                                  covnames=self.covnames, basecovs=self.basecovs, cov_hist=self.cov_hist,
