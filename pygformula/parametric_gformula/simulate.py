@@ -84,7 +84,7 @@ def simulate_post_discharge_Z_from_discharge_rows(
     post["tsd"] = post[t_col].to_numpy() - post["tD"].to_numpy()  # time since discharge
 
     # Predict hazards per interval
-    if zmodel_fit_custom is not None:
+    if zmodel_predict_custom is not None:
         p = np.asarray(zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_fit), dtype=float)
     else:
         p = np.asarray(z_fit.predict(post), dtype=float)
