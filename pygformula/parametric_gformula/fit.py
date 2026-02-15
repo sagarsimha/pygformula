@@ -751,6 +751,7 @@ def build_fit_data_Z_only(
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
         "cumavg_bicarbonate_arterial__last__last_12h",
+        "t0"
     ]
 
     base_cols = [id_col, A_col, t_col, Z_col, death_td_col, death_abs_col, intime_col]
