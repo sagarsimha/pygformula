@@ -84,9 +84,11 @@ def simulate_post_discharge_Z_from_discharge_rows(
     post["tsd"] = post[t_col].to_numpy() - post["tD"].to_numpy()  # time since discharge
 
     # Predict hazards per interval
-    #p = np.asarray(z_fit.predict(post), dtype=float)
-    p = np.asarray(zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_fit), dtype=float)
-    
+    if zmodel_fit_custom is not None:
+        p = np.asarray(zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_fit), dtype=float)
+    else:
+        p = np.asarray(z_fit.predict(post), dtype=float)
+
     p = np.clip(p, 0.0, 1.0)
 
     # Simulate Bernoulli per interval

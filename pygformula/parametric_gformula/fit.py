@@ -630,15 +630,16 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     # Create a version of obs_data that has exapnded rows after discharge until death/end of follow-up K. 
     # Stays with in-icu death remain unchanged.
     fit_data_Z = build_fit_data_Z_only(sub_data, assume_types_ok=True)
-    
-    # Fit custom lgb model for Z
-    z_outcome_fit = zmodel_fit_custom(zmodel, fit_data_Z)
-    
-    '''z_outcome_fit = smf.glm(
-        zmodel + " + tsd + tD",
-        data=fit_data_Z,                   # already only A==1 risk set
-        family=sm.families.Binomial()
-    ).fit()'''
+
+    if zmodel_fit_custom is not None:
+        # Fit custom lgb model for Z
+        z_outcome_fit = zmodel_fit_custom(zmodel, fit_data_Z)
+    else:
+        # GLM model for Z
+        z_outcome_fit = smf.glm(
+                        zmodel + " + tsd + tD",
+                        data=fit_data_Z,                   # already only A==1 risk set
+                        family=sm.families.Binomial()).fit()
 
     '''if zrestrictions is not None:
         for restriction in zrestrictions:
@@ -750,8 +751,7 @@ def build_fit_data_Z_only(
         "cumavg_hemoglobin__last__last_12h",
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
-        "cumavg_bicarbonate_arterial__last__last_12h",
-        "t0"
+        "cumavg_bicarbonate_arterial__last__last_12h"
     ]
 
     base_cols = [id_col, A_col, t_col, Z_col, death_td_col, death_abs_col, intime_col]
