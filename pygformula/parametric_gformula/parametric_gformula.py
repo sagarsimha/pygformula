@@ -688,6 +688,9 @@ class ParametricGformula:
                     sim_time_points = len(self.intervention_dicts[intervention_name][0][3])
                 else:
                     sim_time_points = self.time_points
+                
+                if intervention_name == "Natural course":
+                    sim_time_points = 5
 
                 simulate_result = simulate(simul_rng=self.simul_rng, time_points=sim_time_points, time_name=self.time_name,
                                            id=self.id, covnames=self.covnames, basecovs=self.basecovs,
