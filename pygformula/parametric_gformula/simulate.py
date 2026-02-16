@@ -742,7 +742,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
         # --- Administrative end-of-follow-up: if a subject is still in ICU (A=0) and never had Py assigned,
         # declare them a survivor at K by setting Py=0 on their final simulated row only.
         last_idx = pool.groupby(id, sort=False)[time_name].idxmax()
-        pool.loc[last_idx, 'Py'] = pool.loc[last_idx, 'Py'].fillna(0)
+        last_rows = pool.loc[last_idx, [id, 'A', 'Py']]
+
+        mask = (last_rows['A'] == 0) & (last_rows['Py'].isna())
+        pool.loc[last_rows.index[mask], 'Py'] = 0
         
         g_result = pool.groupby(id).tail(1)['Py'].mean()
 
