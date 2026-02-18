@@ -28,7 +28,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
         A list of strings specifying the “type” of each time-varying covariate included in covnames.
         The supported types: "binary", "normal", "categorical", "bounded normal", "zero-inflated normal",
         "truncated normal", "absorbing", "categorical time", "square time" and "custom". The list must be the same length
-        as covnames and in the same order.
+        as covnames and in the same order..
 
     covfits_custom: List
         A list, each element could be 'NA' or a user-specified fit function. The non-NA value is set
