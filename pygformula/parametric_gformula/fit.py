@@ -6,7 +6,7 @@ import re
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pytruncreg import truncreg
-from pymer4.models import glmer
+#from pymer4.models import glmer
 
 
 
@@ -645,8 +645,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     else:
         # GLM model for Z
         z_outcome_fit = smf.glm(
-                        #zmodel + " + tsd + tD",
-                        zmodel,
+                        zmodel + " + tsd + tD",
                         data=fit_data_Z,                   # already only A==1 risk set
                         family=sm.families.Binomial()).fit()
 
