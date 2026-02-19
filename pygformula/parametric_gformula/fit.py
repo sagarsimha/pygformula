@@ -641,7 +641,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
     if zmodel_fit_custom is not None:
         # Fit custom lgb model for Z
-        z_outcome_fit = zmodel_fit_custom(zmodel, fit_data_Z)
+        z_outcome_fit = zmodel_fit_custom(zmodel + " + tsd + tD", fit_data_Z)
     else:
         # GLM model for Z
         z_outcome_fit = smf.glm(
