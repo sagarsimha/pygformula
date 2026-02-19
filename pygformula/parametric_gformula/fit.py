@@ -6,6 +6,8 @@ import re
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pytruncreg import truncreg
+from pymer4.models import glmer
+
 
 
 def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name, obs_data, return_fits,
@@ -141,6 +143,9 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
 
             if covtypes[k] == 'binary':
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Binomial()).fit()
+                #fit = glmer(covmodels[k], data=fit_data, family='binomial').fit()
+                #fit.set_factors('patient_id')
+
                 rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
                 covariate_fits[cov] = fit
                 rmses[cov] = rmse
@@ -155,6 +160,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                 max_cov = fit_data[cov].max()
                 bound = [min_cov, max_cov]
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Gaussian()).fit()
+                #fit = glmer(covmodels[k], data=fit_data, family='gaussian').fit()
                 #print(fit_data)
                 #print(fit.predict())
                 #print(len(fit.predict()), len(fit_data[cov]))
@@ -639,7 +645,8 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     else:
         # GLM model for Z
         z_outcome_fit = smf.glm(
-                        zmodel + " + tsd + tD",
+                        #zmodel + " + tsd + tD",
+                        zmodel,
                         data=fit_data_Z,                   # already only A==1 risk set
                         family=sm.families.Binomial()).fit()
 
