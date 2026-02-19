@@ -81,7 +81,7 @@ def simulate_post_discharge_Z_from_discharge_rows(
 
     # Predict hazards per interval
     if zmodel_predict_custom is not None:
-        p = np.asarray(zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_fit), dtype=float)
+        p = np.asarray(zmodel_predict_custom(zmodel=zmodel + " + tsd + tD", new_df=post, fit=z_fit), dtype=float)
     else:
         p = np.asarray(z_fit.predict(post), dtype=float)
 
