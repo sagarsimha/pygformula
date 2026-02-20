@@ -824,7 +824,7 @@ def build_postdischarge_weighted_rows(
     # Row with Z=0, weight = t_death - tD
     out2a = b2.copy()
     out2a["Z"] = 0
-    out2a["weight"] = (out2a["t_death"].astype(int) - out2a["tD"].astype(int) - 1).astype(int)
+    out2a["weight"] = (out2a["t_death"].astype(int) - out2a["tD"].astype(int)).astype(int)
 
     # Row with Z=1, weight=1
     out2b = b2.copy()
