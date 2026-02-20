@@ -794,7 +794,7 @@ def build_postdischarge_weighted_rows(
     td_ratio = (death_td[td_valid] / bin_len).astype(float)
 
     t_death = pd.Series(pd.NA, index=discharge.index, dtype="Int64")
-    t_death.loc[td_valid] = (np.ceil(td_ratio).astype(int) - 1).astype("Int64")
+    t_death.loc[td_valid] = np.floor(td_ratio).astype(int)
 
     # If death occurs after follow-up, treat as "no death within K"
     t_death_within = t_death.notna() & (t_death <= t_max)
