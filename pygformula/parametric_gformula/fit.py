@@ -559,7 +559,7 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 
-# Fitting a model for post-discharge mortality with hazards until K
+# Fitting a model for post-discharge mortality with constant hazards until K
 def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name, obs_data,
                competing, compevent_name, return_fits, zrestrictions):
     """
@@ -626,12 +626,44 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     model_fits_summary = {}
 
     sub_data = obs_data[obs_data[time_name] >= 0]
-    
-    # Create a version of obs_data that has exapnded rows after discharge until death/end of follow-up K. 
-    # Stays with in-icu death remain unchanged.
-    fit_data_Z = build_fit_data_Z_only(sub_data, assume_types_ok=True)
 
-    fit_data_Z.to_parquet("fit_data_Z.parquet")  # Save the expanded data for debugging
+    z_covs = [
+        "A",
+        "vent_mode__last__last_12h",
+        "cumavg_vent_mode__hours_since_last__last_12h",
+        "cumavg_pco2_arterial__mean__last_12h",
+        "cumavg_po2_arterial__mean__last_12h",
+        "cumavg_o2_flow__last__last_12h",
+        "cumavg_o2_saturation__mean__last_12h",
+        "cumavg_respiratory_rate_measured__mean__last_12h",
+        "cumavg_glasgow_coma_scale_total__last__last_12h",
+        "cumavg_lactate__last__last_12h",
+        "cumavg_fluid_out_urine__mean__last_12h",
+        "cumavg_ureum__last__last_12h",
+        "cumavg_creatinine__last__last_12h",
+        "cumavg_arterial_blood_pressure_mean__mean__last_12h",
+        "cumavg_heart_rate__mean__last_12h",
+        "cumavg_hemoglobin__last__last_12h",
+        "cumavg_temperature__mean__last_12h",
+        "cumavg_activated_partial_thromboplastin_time__last__last_12h",
+        "cumavg_bicarbonate_arterial__last__last_12h"
+    ]
+
+    # Reweigh rows
+    fit_data_Z, weight_check_df, sanity = build_post_discharge_agg(
+        df=sub_data,
+        stay_col="stay_id",
+        t_col="t0",
+        A_col="A",
+        D_col="D",
+        death_td_col="death_time_from_intime",
+        death_abs_col="death_abs_time",
+        intime_col="intime",
+        t_max=179,
+        z_covs=z_covs,
+    )
+    
+    fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom lgb model for Z
@@ -639,7 +671,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     else:
         # GLM model for Z
         z_outcome_fit = smf.glm(
-                        zmodel + " + tsd + tD",
+                        zmodel,
                         data=fit_data_Z,                   # already only A==1 risk set
                         family=sm.families.Binomial()).fit()
 
@@ -675,183 +707,156 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     return z_outcome_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 
-# Expanding dataset for post-discharge hazards until K (e.g. 90 days in 12h grids -> t_max=179)
-def build_fit_data_Z_only(
+# Dataset for post-discharge constant hazards until K (e.g. 90 days in 12h grids -> t_max=179)
+def build_post_discharge_agg(
     df: pd.DataFrame,
-    id_col: str = "admission_id",
+    stay_col: str = "stay_id",
+    t_col: str = "t",
     A_col: str = "A",
-    t_col: str = "t0",
-    Z_col: str = "Z",
-    death_td_col: str = "death_time_from_intime",
-    death_abs_col: str = "death_abs_time",
-    intime_col: str = "intime",
+    D_col: str = "D",
+    death_td_col: str = "death_time_from_intime",   # preferred (timedelta or hours)
+    death_abs_col: str = "death_abs_time",          # optional fallback
+    intime_col: str = "intime",                     # needed only if using death_abs_col fallback
     t_max: int = 179,
-    step_hours: int = 12,
-    assume_types_ok: bool = False,
-) -> pd.DataFrame:
-    
+    z_covs: list | None = None,
+):
     """
-    Memory-safe version of expand_post_discharge_Z_fast() that expands ONLY the columns
-    needed to fit the post-discharge hazard model for Z.
+    Build post-discharge aggregated dataset for fitting a weighted GLM on Z.
 
-    Output columns:
-      - [id_col, t_col, Z_col]  (time + outcome)
-      - discharge covariates required by your zmodel (frozen after discharge):
-            A,
-            vent_mode__last__last_12h,
-            cumavg_vent_mode__hours_since_last__last_12h,
-            cumavg_pco2_arterial__mean__last_12h,
-            cumavg_po2_arterial__mean__last_12h,
-            cumavg_o2_flow__last__last_12h,
-            cumavg_o2_saturation__mean__last_12h,
-            cumavg_respiratory_rate_measured__mean__last_12h,
-            cumavg_glasgow_coma_scale_total__last__last_12h,
-            cumavg_lactate__last__last_12h,
-            cumavg_fluid_out_urine__mean__last_12h,
-            cumavg_ureum__last__last_12h,
-            cumavg_creatinine__last__last_12h,
-            cumavg_arterial_blood_pressure_mean__mean__last_12h,
-            cumavg_heart_rate__mean__last_12h,
-            cumavg_hemoglobin__last__last_12h,
-            cumavg_temperature__mean__last_12h,
-            cumavg_activated_partial_thromboplastin_time__last__last_12h,
-            cumavg_bicarbonate_arterial__last__last_12h
-
-    Functional behavior retained from your original expand_post_discharge_Z_fast():
-      - Z = NaN for all A==0 rows (pre-discharge)
-      - Only admissions with a discharge row (first A==1) are expanded
-      - Expansion starts at tD+1 (retains original discharge row)
-      - Death mapped to grid: t_death = ceil(death_td / 12h) - 1
-      - Discharge row: Z=1 iff death occurs in [tD, tD+1); else Z=0
-      - Expanded rows: Z=0, except Z=1 at t_death (if t_death > tD and within follow-up)
-      - Expansion stops at min(t_death, t_max) or t_max if no death/after follow-up
+    Output rows per discharged stay:
+      Case 1 (death in [tD, tD+1)): 1 row -> Z=1, weight=1
+      Case 2 (death after tD within follow-up): 2 rows -> (Z=0, w=t_death-tD) and (Z=1, w=1)
+      Case 3 (no death within follow-up): 1 row -> Z=0, weight=t_max+1-tD, t_death=NaN
 
     Notes:
-      - We DO NOT carry grid_end/ref_time because they are not needed for modeling Z.
-      - The returned dataframe is directly usable for smf.glm(zmodel, data=returned_df, ...).
+    - "Freeze z_covs at discharge": take z_covs from the discharge row and repeat into output rows.
+    - Excludes stays with no discharge (no A==1), including in-ICU deaths where last row has D==1.
     """
 
-    # ----------------------------
-    # 0) keep only columns needed for Z modeling + expansion logic
-    # ----------------------------
-    z_covs = [
-        A_col,
-        "vent_mode__last__last_12h",
-        "cumavg_vent_mode__hours_since_last__last_12h",
-        "cumavg_pco2_arterial__mean__last_12h",
-        "cumavg_po2_arterial__mean__last_12h",
-        "cumavg_o2_flow__last__last_12h",
-        "cumavg_o2_saturation__mean__last_12h",
-        "cumavg_respiratory_rate_measured__mean__last_12h",
-        "cumavg_glasgow_coma_scale_total__last__last_12h",
-        "cumavg_lactate__last__last_12h",
-        "cumavg_fluid_out_urine__mean__last_12h",
-        "cumavg_ureum__last__last_12h",
-        "cumavg_creatinine__last__last_12h",
-        "cumavg_arterial_blood_pressure_mean__mean__last_12h",
-        "cumavg_heart_rate__mean__last_12h",
-        "cumavg_hemoglobin__last__last_12h",
-        "cumavg_temperature__mean__last_12h",
-        "cumavg_activated_partial_thromboplastin_time__last__last_12h",
-        "cumavg_bicarbonate_arterial__last__last_12h"
-    ]
+    if z_covs is None:
+        raise ValueError("Pass z_covs explicitly (your list of discharge-frozen predictors).")
 
-    base_cols = [id_col, A_col, t_col, Z_col, death_td_col, death_abs_col, intime_col]
-    keep_cols = []
-    for c in base_cols + z_covs:
-        if c in df.columns and c not in keep_cols:
-            keep_cols.append(c)
+    # --- 1) Identify unique discharge rows (A==1), one per stay_id ---
+    dis = df.loc[df[A_col].eq(1), [stay_col, t_col, D_col, death_td_col, death_abs_col, intime_col] + z_covs].copy()
 
-    x = df[keep_cols].copy()
+    # If a stay has multiple A==1 rows (should not), keep the first by time.
+    # (You said it should be unique; we still guard for robustness.)
+    dis.sort_values([stay_col, t_col], inplace=True)
+    dis = dis.drop_duplicates(subset=[stay_col], keep="first")
 
-    if Z_col not in x.columns:
-        x[Z_col] = np.nan
+    # Rename discharge time
+    dis.rename(columns={t_col: "tD"}, inplace=True)
 
-    # ----------------------------
-    # 1) dtype coercions (optional)
-    # ----------------------------
-    if not assume_types_ok:
-        x[t_col] = x[t_col].astype(int)
-        if death_td_col in x.columns:
-            x[death_td_col] = pd.to_timedelta(x[death_td_col], errors="coerce")
-        if (death_abs_col in x.columns) and (intime_col in x.columns):
-            x[death_abs_col] = pd.to_datetime(x[death_abs_col], errors="coerce")
-            x[intime_col] = pd.to_datetime(x[intime_col], errors="coerce")
+    # --- 2) Compute t_death on 12h grid (t=0 is [0h,12h), t=1 is [12h,24h), etc.) ---
+    # Prefer death_time_from_intime if present & non-null; else fallback to death_abs_time - intime.
+    # Supports death_time_from_intime as timedelta-like OR numeric hours.
+    death_td = None
 
-    step = pd.Timedelta(hours=step_hours)
-    step_ns = step.value
-
-    # ----------------------------
-    # 2) restrict immediately to discharged rows only (A==1)
-    # ----------------------------
-    discharged = x[x[A_col] == 1]
-    if discharged.empty:
-        # No discharged admissions => no Z hazard data
-        return x.iloc[0:0].assign(tD=pd.Series(dtype=int), tsd=pd.Series(dtype=int))
-
-    # First discharge row per admission (min t among A==1)
-    first_idx = discharged.groupby(id_col)[t_col].idxmin()
-    disc = x.loc[first_idx].copy()  # 1 row per discharged admission (frozen covariates)
-    tD = disc[t_col].astype(int).to_numpy()
-
-    # ----------------------------
-    # 3) compute death time since intime and map to grid
-    # ----------------------------
-    if death_td_col in disc.columns:
-        death_td = disc[death_td_col]
-    elif (death_abs_col in disc.columns) and (intime_col in disc.columns):
-        death_td = disc[death_abs_col] - disc[intime_col]
+    if death_td_col in dis.columns and dis[death_td_col].notna().any():
+        death_td = dis[death_td_col]
+    elif (death_abs_col in dis.columns) and (intime_col in dis.columns) and dis[death_abs_col].notna().any():
+        # fallback: absolute timestamps -> timedelta
+        death_td = pd.to_datetime(dis[death_abs_col]) - pd.to_datetime(dis[intime_col])
     else:
-        death_td = pd.Series(pd.NaT, index=disc.index, dtype="timedelta64[ns]")
+        # no death info available
+        death_td = pd.Series([pd.NaT] * len(dis), index=dis.index)
 
-    valid = death_td.notna().to_numpy()
-    t_death = np.full(len(disc), -1, dtype=int)
+    # Convert death_td to hours as float
+    if np.issubdtype(death_td.dtype, np.number):
+        death_hours = death_td.astype(float)
+    else:
+        # timedelta-like
+        death_hours = death_td.dt.total_seconds() / 3600.0
 
-    if valid.any():
-        a_ns = death_td.astype("int64").to_numpy()[valid]
-        q = (a_ns + step_ns - 1) // step_ns
-        t_tmp = np.maximum((q - 1).astype(int), 0)
-        t_death[valid] = t_tmp
+    # Map to 12h grid window index using half-open intervals:
+    # t_death = floor(death_hours / 12).
+    # Examples: 0h->0, 11.9h->0, 12h->1, 23.9h->1, 24h->2
+    t_death = np.floor(death_hours / 12.0)
+    t_death = pd.Series(t_death, index=dis.index)
 
-    # Ignore death before discharge
-    t_death = np.where((t_death != -1) & (t_death < tD), -1, t_death)
+    # Missing death time => NaN
+    t_death = t_death.where(np.isfinite(t_death), np.nan).astype("Float64")
+    dis["t_death"] = t_death
 
-    # expansion end per admission
-    t_end = np.where(t_death == -1, t_max, np.minimum(t_death, t_max))
-    n_steps = np.maximum(t_end - tD + 1, 0)  # include discharge interval
+    # --- 3) Keep only deaths that occur AFTER/AT discharge and within follow-up (0..t_max) ---
+    # If death is before discharge (shouldn’t be post-discharge), treat as "no post-discharge death".
+    within_fu = dis["t_death"].notna() & (dis["t_death"] >= dis["tD"]) & (dis["t_death"] <= t_max)
 
-    mask = n_steps > 0
-    disc2 = disc.loc[mask].copy()
-    tD2 = tD[mask]
-    t_death2 = t_death[mask]
-    n_steps2 = n_steps[mask]
+    # Case 1: death in [tD, tD+1)  <=> t_death == tD
+    case1 = within_fu & (dis["t_death"] == dis["tD"])
 
-    # ----------------------------
-    # 4) expand: repeat discharge row across post-discharge intervals
-    # ----------------------------
-    rep = np.repeat(np.arange(len(disc2)), n_steps2)
-    post = disc2.iloc[rep].copy()
+    # Case 2: death after discharge within follow-up  <=> t_death > tD
+    case2 = within_fu & (dis["t_death"] > dis["tD"])
 
-    # offsets 0..n_steps-1
-    ends = np.cumsum(n_steps2)
-    starts = ends - n_steps2
-    offsets = np.empty(len(post), dtype=int)
-    for i in range(len(n_steps2)):
-        offsets[starts[i]:ends[i]] = np.arange(n_steps2[i], dtype=int)
+    # Case 3: no death within follow-up (includes missing t_death or after t_max or before tD)
+    case3 = ~within_fu
 
-    post["tD"] = np.repeat(tD2, n_steps2)
-    post[t_col] = post["tD"].to_numpy() + offsets
-    post["tsd"] = post[t_col].to_numpy() - post["tD"].to_numpy()
+    # --- 4) Build output rows (vectorized) ---
+    base_cols = [stay_col, "tD", "t_death"] + z_covs
 
-    # Z hazard outcome: default 0, set 1 at t_death
-    post[Z_col] = 0
-    t_death_rep = np.repeat(t_death2, n_steps2)
-    post.loc[(t_death_rep != -1) & (post[t_col].to_numpy() == t_death_rep), Z_col] = 1
+    # Case 1 output: one row Z=1, weight=1
+    out1 = dis.loc[case1, base_cols].copy()
+    out1["Z"] = 1
+    out1["weight"] = 1.0
 
-    # ----------------------------
-    # 5) return only the columns needed for modeling
-    # ----------------------------
-    model_cols = [id_col, t_col, "tD", "tsd", Z_col] + z_covs
-    model_cols = [c for c in model_cols if c in post.columns]
+    # Case 2 output: two rows
+    # Row A: Z=0, weight = t_death - tD
+    out2a = dis.loc[case2, base_cols].copy()
+    out2a["Z"] = 0
+    out2a["weight"] = (out2a["t_death"].astype(float) - out2a["tD"].astype(float)).astype(float)
 
-    return post[model_cols].sort_values([id_col, t_col]).reset_index(drop=True)
+    # Row B: Z=1, weight = 1
+    out2b = dis.loc[case2, base_cols].copy()
+    out2b["Z"] = 1
+    out2b["weight"] = 1.0
+
+    # Case 3 output: one row Z=0, t_death=NaN, weight = t_max+1 - tD
+    out3 = dis.loc[case3, base_cols].copy()
+    out3["t_death"] = pd.Series([pd.NA] * len(out3), index=out3.index, dtype="Float64")
+    out3["Z"] = 0
+    out3["weight"] = (t_max + 1 - out3["tD"].astype(float)).astype(float)
+
+    out = pd.concat([out1, out2a, out2b, out3], axis=0, ignore_index=True)
+
+    # --- 5) Sanity checks on weights ---
+    # Expected total weight per stay:
+    # - if death within follow-up: (t_death - tD + 1)
+    # - else: (t_max - tD + 1)
+    # Note: your construction yields total weight == number of 12h intervals covered (inclusive of terminal interval).
+    totals = out.groupby(stay_col)["weight"].sum()
+
+    # Recompute expectation from discharge frame
+    exp = dis[[stay_col, "tD", "t_death"]].copy()
+    exp["within_fu"] = within_fu.values
+    exp["expected_total_weight"] = np.where(
+        exp["within_fu"],
+        (exp["t_death"].astype(float) - exp["tD"].astype(float) + 1.0),
+        (t_max - exp["tD"].astype(float) + 1.0),
+    )
+    exp = exp.set_index(stay_col)
+
+    # Align and check
+    aligned = exp.join(totals.rename("observed_total_weight"), how="inner")
+    aligned["weight_ok"] = np.isclose(
+        aligned["observed_total_weight"].astype(float),
+        aligned["expected_total_weight"].astype(float),
+        rtol=0,
+        atol=1e-8,
+    )
+
+    sanity = {
+        "n_discharged_stays": int(dis[stay_col].nunique()),
+        "n_output_rows": int(len(out)),
+        "case1_stays": int(case1.sum()),
+        "case2_stays": int(case2.sum()),
+        "case3_stays": int(case3.sum()),
+        "weight_failures": int((~aligned["weight_ok"]).sum()),
+    }
+
+    # Extra guardrails
+    # - weights must be positive
+    # - case2 Z=0 rows must have integer-like weights >=1 (since t_death > tD)
+    if (out["weight"] <= 0).any():
+        sanity["warning_nonpositive_weights"] = True
+
+    return out, aligned.reset_index(), sanity
