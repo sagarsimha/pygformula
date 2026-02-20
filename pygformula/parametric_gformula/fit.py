@@ -652,7 +652,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     # Reweigh rows
     fit_data_Z, weight_check_df, sanity = build_post_discharge_agg(
         df=sub_data,
-        stay_col="stay_id",
+        stay_col="admission_id",
         t_col="t0",
         A_col="A",
         D_col="D",
