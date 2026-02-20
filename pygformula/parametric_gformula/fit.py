@@ -650,17 +650,17 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     ]
 
     # Reweigh rows
-    fit_data_Z, weight_check_df, sanity = build_post_discharge_agg(
+    fit_data_Z = build_postdischarge_weighted_rows(
         df=sub_data,
         stay_col="admission_id",
         t_col="t0",
+        ref_time_col="ref_time",
         A_col="A",
-        D_col="D",
-        death_td_col="death_time_from_intime",
-        death_abs_col="death_abs_time",
-        intime_col="intime",
         t_max=179,
         z_covs=z_covs,
+        death_abs_col="death_abs_time",
+        death_td_col="death_time_from_intime",
+        check_weights=True,
     )
     
     fit_data_Z.to_parquet("fit_data_Z.parquet")
@@ -708,155 +708,173 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
 
 # Dataset for post-discharge constant hazards until K (e.g. 90 days in 12h grids -> t_max=179)
-def build_post_discharge_agg(
+def build_postdischarge_weighted_rows(
     df: pd.DataFrame,
-    stay_col: str = "stay_id",
-    t_col: str = "t",
-    A_col: str = "A",
-    D_col: str = "D",
-    death_td_col: str = "death_time_from_intime",   # preferred (timedelta or hours)
-    death_abs_col: str = "death_abs_time",          # optional fallback
-    intime_col: str = "intime",                     # needed only if using death_abs_col fallback
-    t_max: int = 179,
-    z_covs: list | None = None,
-):
+    *,
+    stay_col: str = "admission_id",
+    t_col: str = "t0",
+    ref_time_col: str = "ref_time",
+    A_col: str = "A",                 # <-- set to your actual A column name
+    t_max: int = 179,                 # 0..179 grid (12h bins), 180 bins total
+    z_covs=None,
+    death_abs_col: str = "death_abs_time",            # datetime64[ns] or None
+    death_td_col: str = "death_time_from_intime",     # timedelta64[ns] or None
+    check_weights: bool = True,
+) -> pd.DataFrame:
     """
-    Build post-discharge aggregated dataset for fitting a weighted GLM on Z.
-
-    Output rows per discharged stay:
-      Case 1 (death in [tD, tD+1)): 1 row -> Z=1, weight=1
-      Case 2 (death after tD within follow-up): 2 rows -> (Z=0, w=t_death-tD) and (Z=1, w=1)
-      Case 3 (no death within follow-up): 1 row -> Z=0, weight=t_max+1-tD, t_death=NaN
+    Build a post-discharge dataset with weights for a discrete-time Z model,
+    producing at most 2 rows per discharged stay:
+      Case 1: death in [tD, tD+1) -> 1 row: Z=1, weight=1
+      Case 2: death after tD and within follow-up -> 2 rows:
+              row1: Z=0, weight=t_death - tD
+              row2: Z=1, weight=1
+      Case 3: no death within follow-up -> 1 row: Z=0, weight=t_max+1 - tD
 
     Notes:
-    - "Freeze z_covs at discharge": take z_covs from the discharge row and repeat into output rows.
-    - Excludes stays with no discharge (no A==1), including in-ICU deaths where last row has D==1.
+    - We only include stays that have an A==1 row (discharge observed).
+    - z_covs are frozen at the discharge row values.
+    - t_death is computed from death_time_from_intime if available; otherwise from
+      death_abs_time minus an inferred intime based on (ref_time, t).
     """
 
     if z_covs is None:
-        raise ValueError("Pass z_covs explicitly (your list of discharge-frozen predictors).")
+        raise ValueError("Please pass z_covs list explicitly.")
 
-    # --- 1) Identify unique discharge rows (A==1), one per stay_id ---
-    dis = df.loc[df[A_col].eq(1), [stay_col, t_col, D_col, death_td_col, death_abs_col, intime_col] + z_covs].copy()
+    # ---- Minimal column checks (fail fast) ----
+    needed = {stay_col, t_col, ref_time_col, A_col, *z_covs}
+    missing = needed - set(df.columns)
+    if missing:
+        raise KeyError(f"Missing required columns: {sorted(missing)}")
 
-    # If a stay has multiple A==1 rows (should not), keep the first by time.
-    # (You said it should be unique; we still guard for robustness.)
-    dis.sort_values([stay_col, t_col], inplace=True)
-    dis = dis.drop_duplicates(subset=[stay_col], keep="first")
+    # Ensure sorted so "first A==1" is deterministic if duplicates exist
+    df = df.sort_values([stay_col, t_col], kind="mergesort")
 
-    # Rename discharge time
-    dis.rename(columns={t_col: "tD"}, inplace=True)
+    # ---- 1) Identify unique discharge row per stay (A==1) ----
+    discharge = (
+        df.loc[df[A_col] == 1, [stay_col, t_col, ref_time_col, *z_covs,
+                               *( [death_td_col] if death_td_col in df.columns else [] ),
+                               *( [death_abs_col] if death_abs_col in df.columns else [] )]]
+          .drop_duplicates(subset=[stay_col], keep="first")
+          .copy()
+    )
 
-    # --- 2) Compute t_death on 12h grid (t=0 is [0h,12h), t=1 is [12h,24h), etc.) ---
-    # Prefer death_time_from_intime if present & non-null; else fallback to death_abs_time - intime.
-    # Supports death_time_from_intime as timedelta-like OR numeric hours.
+    # If no discharged stays, return empty frame with expected columns
+    out_cols = [stay_col, "tD", "t_death", "Z", "weight", *z_covs]
+    if discharge.empty:
+        return pd.DataFrame(columns=out_cols)
+
+    discharge = discharge.rename(columns={t_col: "tD"})
+    discharge["tD"] = discharge["tD"].astype(int)
+
+    # ---- 2) Compute death time-from-intime (timedelta) robustly ----
+    # Prefer death_time_from_intime if present & non-null, else use death_abs_time - inferred_intime
     death_td = None
 
-    if death_td_col in dis.columns and dis[death_td_col].notna().any():
-        death_td = dis[death_td_col]
-    elif (death_abs_col in dis.columns) and (intime_col in dis.columns) and dis[death_abs_col].notna().any():
-        # fallback: absolute timestamps -> timedelta
-        death_td = pd.to_datetime(dis[death_abs_col]) - pd.to_datetime(dis[intime_col])
-    else:
-        # no death info available
-        death_td = pd.Series([pd.NaT] * len(dis), index=dis.index)
+    if death_td_col in discharge.columns:
+        death_td = discharge[death_td_col]
 
-    # Convert death_td to hours as float
-    if np.issubdtype(death_td.dtype, np.number):
-        death_hours = death_td.astype(float)
-    else:
-        # timedelta-like
-        death_hours = death_td.dt.total_seconds() / 3600.0
+    if (death_td is None) or death_td.isna().all():
+        # Infer intime using: ref_time = intime + (t+1)*12h  => intime = ref_time - (t+1)*12h
+        if death_abs_col not in discharge.columns:
+            # No way to compute death timing
+            death_td = pd.Series(pd.NaT, index=discharge.index, dtype="timedelta64[ns]")
+        else:
+            inferred_intime = discharge[ref_time_col] - pd.to_timedelta((discharge["tD"] + 1) * 12, unit="h")
+            death_td = discharge[death_abs_col] - inferred_intime
 
-    # Map to 12h grid window index using half-open intervals:
-    # t_death = floor(death_hours / 12).
-    # Examples: 0h->0, 11.9h->0, 12h->1, 23.9h->1, 24h->2
-    t_death = np.floor(death_hours / 12.0)
-    t_death = pd.Series(t_death, index=dis.index)
+    # Normalize to timedelta64[ns]
+    death_td = pd.to_timedelta(death_td, errors="coerce")
 
-    # Missing death time => NaN
-    t_death = t_death.where(np.isfinite(t_death), np.nan).astype("Float64")
-    dis["t_death"] = t_death
+    # ---- 3) Map death timedelta to grid index t_death ----
+    # You previously used: t_death = ceil(death_td / 12h) - 1
+    # (This aligns to your earlier mapping; keep it consistent.)
+    bin_len = pd.Timedelta(hours=12)
 
-    # --- 3) Keep only deaths that occur AFTER/AT discharge and within follow-up (0..t_max) ---
-    # If death is before discharge (shouldn’t be post-discharge), treat as "no post-discharge death".
-    within_fu = dis["t_death"].notna() & (dis["t_death"] >= dis["tD"]) & (dis["t_death"] <= t_max)
+    td_valid = death_td.notna() & (death_td >= pd.Timedelta(0))
+    td_ratio = (death_td[td_valid] / bin_len).astype(float)
 
-    # Case 1: death in [tD, tD+1)  <=> t_death == tD
-    case1 = within_fu & (dis["t_death"] == dis["tD"])
+    t_death = pd.Series(pd.NA, index=discharge.index, dtype="Int64")
+    t_death.loc[td_valid] = (np.ceil(td_ratio).astype(int) - 1).astype("Int64")
 
-    # Case 2: death after discharge within follow-up  <=> t_death > tD
-    case2 = within_fu & (dis["t_death"] > dis["tD"])
+    # If death occurs after follow-up, treat as "no death within K"
+    t_death_within = t_death.notna() & (t_death <= t_max)
 
-    # Case 3: no death within follow-up (includes missing t_death or after t_max or before tD)
-    case3 = ~within_fu
+    discharge["t_death"] = t_death
 
-    # --- 4) Build output rows (vectorized) ---
-    base_cols = [stay_col, "tD", "t_death"] + z_covs
+    # ---- 4) Build rows for the 3 cases (vectorized) ----
+    # Case 1: death in [tD, tD+1)  <=> t_death == tD (with your mapping)
+    case1 = t_death_within & (discharge["t_death"] == discharge["tD"])
 
-    # Case 1 output: one row Z=1, weight=1
-    out1 = dis.loc[case1, base_cols].copy()
+    # Case 2: death after tD but within follow-up
+    case2 = t_death_within & (discharge["t_death"] > discharge["tD"])
+
+    # Case 3: no death within follow-up (including missing death time or after t_max)
+    case3 = ~t_death_within
+
+    base = discharge[[stay_col, "tD", "t_death", *z_covs]].copy()
+
+    # --- Case 1 output ---
+    out1 = base.loc[case1].copy()
     out1["Z"] = 1
-    out1["weight"] = 1.0
+    out1["weight"] = 1
 
-    # Case 2 output: two rows
-    # Row A: Z=0, weight = t_death - tD
-    out2a = dis.loc[case2, base_cols].copy()
+    # --- Case 2 output: two rows per stay ---
+    b2 = base.loc[case2].copy()
+
+    # Row with Z=0, weight = t_death - tD
+    out2a = b2.copy()
     out2a["Z"] = 0
-    out2a["weight"] = (out2a["t_death"].astype(float) - out2a["tD"].astype(float)).astype(float)
+    out2a["weight"] = (out2a["t_death"].astype(int) - out2a["tD"].astype(int)).astype(int)
 
-    # Row B: Z=1, weight = 1
-    out2b = dis.loc[case2, base_cols].copy()
+    # Row with Z=1, weight=1
+    out2b = b2.copy()
     out2b["Z"] = 1
-    out2b["weight"] = 1.0
+    out2b["weight"] = 1
 
-    # Case 3 output: one row Z=0, t_death=NaN, weight = t_max+1 - tD
-    out3 = dis.loc[case3, base_cols].copy()
-    out3["t_death"] = pd.Series([pd.NA] * len(out3), index=out3.index, dtype="Float64")
+    # --- Case 3 output ---
+    out3 = base.loc[case3].copy()
     out3["Z"] = 0
-    out3["weight"] = (t_max + 1 - out3["tD"].astype(float)).astype(float)
+    out3["t_death"] = pd.NA
+    out3["weight"] = (t_max + 1 - out3["tD"].astype(int)).astype(int)
 
-    out = pd.concat([out1, out2a, out2b, out3], axis=0, ignore_index=True)
+    out = pd.concat([out1, out2a, out2b, out3], ignore_index=True)
+    out = out[[stay_col, "tD", "t_death", "Z", "weight", *z_covs]].sort_values([stay_col, "Z"], kind="mergesort")
 
-    # --- 5) Sanity checks on weights ---
-    # Expected total weight per stay:
-    # - if death within follow-up: (t_death - tD + 1)
-    # - else: (t_max - tD + 1)
-    # Note: your construction yields total weight == number of 12h intervals covered (inclusive of terminal interval).
-    totals = out.groupby(stay_col)["weight"].sum()
+    # ---- 5) Sanity checks on weights ----
+    if check_weights:
+        # Basic positivity
+        bad = out["weight"].isna() | (out["weight"] <= 0)
+        if bad.any():
+            ex = out.loc[bad, [stay_col, "tD", "t_death", "Z", "weight"]].head(10)
+            raise AssertionError(f"Found non-positive/NA weights. Examples:\n{ex}")
 
-    # Recompute expectation from discharge frame
-    exp = dis[[stay_col, "tD", "t_death"]].copy()
-    exp["within_fu"] = within_fu.values
-    exp["expected_total_weight"] = np.where(
-        exp["within_fu"],
-        (exp["t_death"].astype(float) - exp["tD"].astype(float) + 1.0),
-        (t_max - exp["tD"].astype(float) + 1.0),
-    )
-    exp = exp.set_index(stay_col)
+        # Per-stay expected total weight:
+        # - Case1 total = 1
+        # - Case2 total = (t_death - tD) + 1
+        # - Case3 total = (t_max + 1 - tD)
+        # We recompute from discharge table (one row per stay) and compare to sum of output weights.
+        disc_expect = discharge[[stay_col, "tD", "t_death"]].copy()
 
-    # Align and check
-    aligned = exp.join(totals.rename("observed_total_weight"), how="inner")
-    aligned["weight_ok"] = np.isclose(
-        aligned["observed_total_weight"].astype(float),
-        aligned["expected_total_weight"].astype(float),
-        rtol=0,
-        atol=1e-8,
-    )
+        exp_total = pd.Series(index=disc_expect.index, dtype="int64")
 
-    sanity = {
-        "n_discharged_stays": int(dis[stay_col].nunique()),
-        "n_output_rows": int(len(out)),
-        "case1_stays": int(case1.sum()),
-        "case2_stays": int(case2.sum()),
-        "case3_stays": int(case3.sum()),
-        "weight_failures": int((~aligned["weight_ok"]).sum()),
-    }
+        exp_total.loc[case1] = 1
+        exp_total.loc[case2] = (disc_expect.loc[case2, "t_death"].astype(int) - disc_expect.loc[case2, "tD"].astype(int) + 1)
+        exp_total.loc[case3] = (t_max + 1 - disc_expect.loc[case3, "tD"].astype(int))
 
-    # Extra guardrails
-    # - weights must be positive
-    # - case2 Z=0 rows must have integer-like weights >=1 (since t_death > tD)
-    if (out["weight"] <= 0).any():
-        sanity["warning_nonpositive_weights"] = True
+        got_total = out.groupby(stay_col, sort=False)["weight"].sum()
+        exp_total_by_stay = pd.Series(exp_total.values, index=disc_expect[stay_col].values)
 
-    return out, aligned.reset_index(), sanity
+        # Align indices and compare
+        exp_aligned = exp_total_by_stay.loc[got_total.index]
+        mismatch = (got_total.values != exp_aligned.values)
+
+        if mismatch.any():
+            bad_stays = got_total.index[mismatch][:10]
+            detail = pd.DataFrame({
+                stay_col: bad_stays,
+                "expected_total_weight": exp_aligned.loc[bad_stays].values,
+                "got_total_weight": got_total.loc[bad_stays].values,
+            })
+            raise AssertionError(f"Weight-sum sanity check failed for some stays. Examples:\n{detail}")
+
+    return out
