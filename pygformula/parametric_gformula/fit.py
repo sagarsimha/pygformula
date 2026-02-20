@@ -858,8 +858,8 @@ def build_postdischarge_weighted_rows(
         exp_total = pd.Series(index=disc_expect.index, dtype="int64")
 
         exp_total.loc[case1] = 1
-        exp_total.loc[case2] = (disc_expect.loc[case2, "t_death"].astype(int) - disc_expect.loc[case2, "tD"].astype(int) + 1)
-        exp_total.loc[case3] = (t_max + 1 - disc_expect.loc[case3, "tD"].astype(int))
+        exp_total.loc[case2] = (disc_expect.loc[case2, "t_death"].astype(int) - disc_expect.loc[case2, "tD"].astype(int))
+        exp_total.loc[case3] = (t_max - disc_expect.loc[case3, "tD"].astype(int))
 
         got_total = out.groupby(stay_col, sort=False)["weight"].sum()
         exp_total_by_stay = pd.Series(exp_total.values, index=disc_expect[stay_col].values)
