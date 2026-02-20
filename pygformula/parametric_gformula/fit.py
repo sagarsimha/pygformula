@@ -715,7 +715,7 @@ def build_postdischarge_weighted_rows(
     t_col: str = "t0",
     ref_time_col: str = "ref_time",
     A_col: str = "A",                 # <-- set to your actual A column name
-    t_max: int = 179,                 # 0..179 grid (12h bins), 180 bins total
+    t_max: int = 180,                 # 0..179 grid (12h bins), 180 bins total
     z_covs=None,
     death_abs_col: str = "death_abs_time",            # datetime64[ns] or None
     death_td_col: str = "death_time_from_intime",     # timedelta64[ns] or None
@@ -794,7 +794,7 @@ def build_postdischarge_weighted_rows(
     td_ratio = (death_td[td_valid] / bin_len).astype(float)
 
     t_death = pd.Series(pd.NA, index=discharge.index, dtype="Int64")
-    t_death.loc[td_valid] = np.floor(td_ratio).astype(int)
+    t_death.loc[td_valid] = (np.ceil(td_ratio) - 1).astype(int)
 
     # If death occurs after follow-up, treat as "no death within K"
     t_death_within = t_death.notna() & (t_death <= t_max)
@@ -835,7 +835,7 @@ def build_postdischarge_weighted_rows(
     out3 = base.loc[case3].copy()
     out3["Z"] = 0
     out3["t_death"] = pd.NA
-    out3["weight"] = (t_max - out3["tD"].astype(int)).astype(int)
+    out3["weight"] = (t_max + 1 - out3["tD"].astype(int)).astype(int)
 
     out = pd.concat([out1, out2a, out2b, out3], ignore_index=True)
     out = out[[stay_col, "tD", "t_death", "Z", "weight", *z_covs]].sort_values([stay_col, "Z"], kind="mergesort")
@@ -859,7 +859,7 @@ def build_postdischarge_weighted_rows(
 
         exp_total.loc[case1] = 1
         exp_total.loc[case2] = (disc_expect.loc[case2, "t_death"].astype(int) - disc_expect.loc[case2, "tD"].astype(int) + 1)
-        exp_total.loc[case3] = (t_max - disc_expect.loc[case3, "tD"].astype(int))
+        exp_total.loc[case3] = (t_max + 1 - disc_expect.loc[case3, "tD"].astype(int))
 
         got_total = out.groupby(stay_col, sort=False)["weight"].sum()
         exp_total_by_stay = pd.Series(exp_total.values, index=disc_expect[stay_col].values)
