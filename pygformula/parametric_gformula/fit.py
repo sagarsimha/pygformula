@@ -824,7 +824,7 @@ def build_postdischarge_weighted_rows(
     # Row with Z=0, weight = t_death - tD
     out2a = b2.copy()
     out2a["Z"] = 0
-    out2a["weight"] = (out2a["t_death"].astype(int) - out2a["tD"].astype(int)).astype(int)
+    out2a["weight"] = (out2a["t_death"].astype(int) - out2a["tD"].astype(int) - 1).astype(int)
 
     # Row with Z=1, weight=1
     out2b = b2.copy()
@@ -835,7 +835,7 @@ def build_postdischarge_weighted_rows(
     out3 = base.loc[case3].copy()
     out3["Z"] = 0
     out3["t_death"] = pd.NA
-    out3["weight"] = (t_max + 1 - out3["tD"].astype(int)).astype(int)
+    out3["weight"] = (t_max - out3["tD"].astype(int)).astype(int)
 
     out = pd.concat([out1, out2a, out2b, out3], ignore_index=True)
     out = out[[stay_col, "tD", "t_death", "Z", "weight", *z_covs]].sort_values([stay_col, "Z"], kind="mergesort")
