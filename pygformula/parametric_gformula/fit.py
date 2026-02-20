@@ -656,7 +656,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         t_col="t0",
         ref_time_col="ref_time",
         A_col="A",
-        t_max=179,
+        t_max=180,
         z_covs=z_covs,
         death_abs_col="death_abs_time",
         death_td_col="death_time_from_intime",
@@ -724,7 +724,7 @@ def build_postdischarge_weighted_rows(
     """
     Build a post-discharge dataset with weights for a discrete-time Z model,
     producing at most 2 rows per discharged stay:
-      Case 1: death in [tD, tD+1) -> 1 row: Z=1, weight=1
+      Case 1: death in (tD, tD+1] -> 1 row: Z=1, weight=1
       Case 2: death after tD and within follow-up -> 2 rows:
               row1: Z=0, weight=t_death - tD
               row2: Z=1, weight=1
