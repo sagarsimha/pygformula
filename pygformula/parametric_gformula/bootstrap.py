@@ -238,10 +238,18 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                               competing=competing, compevent_name=compevent_name, return_fits=boot_diag,
                               zrestrictions = None)
 
-        model_coeffs = {**cov_model_coeffs, **ymodel_coeffs, **I_model_coeffs, **zmodel_coeffs}
-        model_stderrs = {**cov_model_stderrs, **ymodel_stderrs, **I_model_stderrs, **zmodel_stderrs}
-        model_vcovs = {**cov_model_vcovs, **ymodel_vcovs, **I_model_vcovs, **zmodel_vcovs}
-        model_fits_summary = {**cov_model_fits_summary, **ymodel_fits_summary, **I_model_fits_summary, **zmodel_fits_summary}
+        model_coeffs = {**cov_model_coeffs, 
+                        #**ymodel_coeffs, 
+                        **I_model_coeffs, **zmodel_coeffs}
+        model_stderrs = {**cov_model_stderrs, 
+                         #**ymodel_stderrs, 
+                         **I_model_stderrs, **zmodel_stderrs}
+        model_vcovs = {**cov_model_vcovs, 
+                       #**ymodel_vcovs, 
+                       **I_model_vcovs, **zmodel_vcovs}
+        model_fits_summary = {**cov_model_fits_summary, 
+                              #**ymodel_fits_summary, 
+                              **I_model_fits_summary, **zmodel_fits_summary}
 
         if competing:
             compevent_fit, comp_model_coeffs, comp_model_stderrs, comp_model_vcovs, comp_model_fits_summary = \
@@ -300,12 +308,15 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                                        
             
                                        custom_histvars = custom_histvars, custom_histories=custom_histories,
-                                       covpredict_custom=covpredict_custom, ymodel=ymodel,
-                                       ymodel_predict_custom=ymodel_predict_custom,
+                                       covpredict_custom=covpredict_custom, 
+                                       #ymodel=ymodel,
+                                       #ymodel_predict_custom=ymodel_predict_custom,
                                        
                                        zmodel=zmodel, zmodel_predict_custom=zmodel_predict_custom, z_outcome_fit=z_outcome_fit,
                                        
-                                       outcome_fit=outcome_fit, outcome_name=outcome_name,
+                                       #outcome_fit=outcome_fit, 
+                                       
+                                       outcome_name=outcome_name,
                                        competing=competing, compevent_name=compevent_name,
                                        compevent_fit=compevent_fit, compevent_model=compevent_model,
                                        compevent_cens=compevent_cens, trunc_params=trunc_params, visit_names=visit_names,
