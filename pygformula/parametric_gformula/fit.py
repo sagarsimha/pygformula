@@ -666,7 +666,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     #fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
-        # Fit custom lgb model for Z
+        # Fit custom model for Z
         z_outcome_fit = zmodel_fit_custom(zmodel, fit_data_Z)
     else:
         # GLM model for Z

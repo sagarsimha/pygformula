@@ -393,9 +393,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z 
-                    pool['Z_hat'] = np.nan
-                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Y_hat'] = death_by_K # Outcome Z is applied to Y
-                    pool['Y_hat'] = np.nan
+                    pool_with_A1_t0["I_hat"] = 0 #In-ICU death is 0 for those discharged.
+
+                    pool['Z_hat'] = np.nan # For the rest of the pool
+
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
@@ -426,7 +427,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
                 pool_with_I1_t0['I_hat'] = 1
-                pool_with_I1_t0['Y_hat'] = 1
+                pool_with_I1_t0['Z_hat'] = np.nan # For this cohort which suffered in-icu death, Z is NA.
+                pool['Z_hat'] = np.nan # For the rest of the pool
 
                 final_df_list.append(pool_with_I1_t0)  # store them in global list for concatenation at the end
 
@@ -666,9 +668,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z. t is the time of discharge.
-                    pool['Z_hat'] = np.nan
-                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Y_hat'] = death_by_K # Outcome Z is applied to Y. t is the time of discharge.
-                    pool['Y_hat'] = np.nan
+                    pool_with_A1_t["I_hat"] = 0 #In-ICU death is 0 for those discharged.
+                    pool['Z_hat'] = np.nan # For the rest of the pool
+
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
@@ -699,29 +701,35 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
                 pool_with_I1_t['I_hat'] = 1
-                pool_with_I1_t['Y_hat'] = 1
+                pool_with_I1_t['Z_hat'] = np.nan # For this cohort which suffered in-icu death, Z is NA.
+                pool['Z_hat'] = np.nan # For the rest of the pool
 
                 final_df_list.append(pool_with_I1_t)  # store them in global list for concatenation at the end
 
 
     # Changes for NC and dynamic
     # Concatenate all dataframes at different t into a single DataFrame pool
-    if True: #intervention_function != static:
 
-        # Leftover stays at end-of-follow-up: enforce Case 4 terminal outcomes
-        print(pool[id].nunique(), 'unique ids in pool after simulation')
-        pool["I_hat"] = pool.get("I_hat", 0)
-        pool["I_hat"] = pool["I_hat"].fillna(0).astype(int)
+    # pool is leftover stays at end-of-follow-up: enforce Case 4 terminal outcomes
+    #print(pool[id].nunique(), 'unique ids in pool after simulation')
+    
+    # 1) Set I_hat = 0 for all rows
+    pool["I_hat"] = 0
 
-        pool["Z_hat"] = np.nan  # undefined since A=0
+    # 2) Set Z_hat = NaN for all rows
+    pool["Z_hat"] = np.nan
 
-        pool["Y_hat"] = pool.get("Y_hat", 0)
-        pool["Y_hat"] = pool["Y_hat"].fillna(0).astype(int)
+    # 3) Set Y_hat = NaN for all rows, then set last row per stay_id to 0
+    pool["Y_hat"] = np.nan
 
-        final_df_list.append(pool)
-        pool = pd.concat(final_df_list, ignore_index=True)
-        pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
-        pool.reset_index(drop=True, inplace=True)
+    last_idx = pool.sort_values([id, time_name]).groupby(id, sort=False).tail(1).index
+    pool.loc[last_idx, "Y_hat"] = 0
+
+    # Concatenate all
+    final_df_list.append(pool)
+    pool = pd.concat(final_df_list, ignore_index=True)
+    pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
+    pool.reset_index(drop=True, inplace=True)
     #############################################################
 
     pool = pool[pool[time_name] >= 0]
