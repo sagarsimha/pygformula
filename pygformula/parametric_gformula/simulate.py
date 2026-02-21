@@ -733,16 +733,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
     if outcome_type == 'binary_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Py'].mean()
-
-        # --- Administrative end-of-follow-up: if a subject is still in ICU (A=0) and never had Py assigned,
-        # declare them a survivor at K by setting Py=0 on their final simulated row only.
-        last_idx = pool.groupby(id, sort=False)[time_name].idxmax()
-        last_rows = pool.loc[last_idx, [id, 'A', 'Py']]
-
-        mask = (last_rows['A'] == 0) & (last_rows['Py'].isna())
-        pool.loc[last_rows.index[mask], 'Py'] = 0
-        
-        g_result = pool.groupby(id).tail(1)['Py'].mean()
+        final_result_stay = pool.groupby(id).agg(D=("D","max"), A=("A","max"), Z=("Z","max"))
+        Y = ((final_result_stay["D"] == 1) | ((final_result_stay["A"] == 1) & (final_result_stay["Z"] == 1))).astype(int)
+        avg_Y = Y.mean()
+        g_result = avg_Y
 
     return {'g_result': g_result, 'pool': pool}
 

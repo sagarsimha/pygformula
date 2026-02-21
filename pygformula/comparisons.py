@@ -227,7 +227,10 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
 
         if outcome_type == 'binary_eof' or outcome_type == 'continuous_eof':
             #obs_mean_Ey = obs_data.loc[obs_data[time_name] == time_points - 1][outcome_name].mean()
-            obs_mean_Ey = obs_data.groupby(id).tail(1)[outcome_name].mean()
+            #obs_mean_Ey = obs_data.groupby(id).tail(1)[outcome_name].mean()
+            final_result_stay_obs = obs_data.groupby(id).agg(D=("D","max"), A=("A","max"), Z=("Z","max"))
+            Y_obs = ((final_result_stay_obs["D"] == 1) | ((final_result_stay_obs["A"] == 1) & (final_result_stay_obs["Z"] == 1))).astype(int)
+            obs_mean_Ey = Y_obs.mean()
 
         if outcome_type == 'survival':
             if competing and not compevent_cens:
