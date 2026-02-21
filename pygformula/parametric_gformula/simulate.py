@@ -23,102 +23,91 @@ def norm_sample(mean, rmse, simul_rng):
 def truc_sample(mean, rmse, a, b):
     return truncnorm.rvs((a - mean) / rmse, (b - mean) / rmse, loc=mean, scale=rmse)
 
-def simulate_post_discharge_Z_from_discharge_rows(
-    pool_with_A1_t0_t: pd.DataFrame,
-    z_fit,
-    zmodel,
-    zmodel_predict_custom,
+def simulate_postdischarge_constant_hazard(
+    pool_with_A1_t_t: pd.DataFrame,
+    z_outcome_fit,
     simul_rng,
     *,
     id_col: str = "admission_id",
-    t_col: str = "t",
-    tD_col: str = "t0",          # discharge time stored here
-    K: int = 179,
-) -> pd.Series:
+    tD_col: str = "tD",     # "t0" is the discharge index tD since the row at discharge is fed.
+    t_max: int = 180,
+    seed: int = 2026,
+    return_t_death: bool = False,
+) -> pd.DataFrame:
     """
-    Vectorized post-discharge hazard simulation.
+    Simulate post-discharge death by K under a constant discrete-time hazard model.
 
-    Inputs
-    ------
-    pool_with_A1_t0_t:
-        DataFrame containing ONLY discharge rows (A==1) for discharged admissions.
-        Must contain id_col and tD_col (discharge time index). Other columns are frozen covariates.
-
-    z_fit:
-        Fitted discrete-time hazard model with .predict(df)->probabilities for each row.
-
-    Returns
-    -------
-    pd.Series of realized outcome Py (0/1), indexed like pool_with_A1_t0_t and in the same order.
-    (IDs/order preserved.)
+    - p_i = model-predicted per-interval (12h) death probability after discharge
+    - n_i = number of at-risk intervals from tD through t_max inclusive = t_max + 1 - tD
+    - death_by_K ~ Bernoulli(q_i) where q_i = 1 - (1 - p_i)^n_i
+    - If return_t_death:
+        sample T_i ~ Geometric(p_i) (support 1,2,...) as number of intervals until death.
+        If T_i <= n_i => death at grid index t_death = tD + (T_i - 1), else censored.
     """
 
-    if pool_with_A1_t0_t.empty:
-        # preserve dtype and index behavior
-        return pd.Series([], index=pool_with_A1_t0_t.index, dtype="int64", name="Py")
+    df = pool_with_A1_t_t.copy()
 
-    disc = pool_with_A1_t0_t.copy()
-    disc["_row_order"] = np.arange(len(disc), dtype=int)  # preserve input order
+    # Basic checks
+    if tD_col not in df.columns:
+        raise KeyError(f"'{tD_col}' not found. Set tD_col to your discharge index column (e.g. 't0').")
+    
+    df[tD_col] = df[tD_col].astype(int)
 
-    tD = disc[tD_col].astype(int).to_numpy()
-    n = len(disc)
+    # Number of intervals at risk (must be >=1 to contribute any risk)
+    n = (t_max + 1 - df[tD_col]).astype(int)
 
-    # number of post-discharge intervals to simulate (including tD..K)
-    n_steps = (K - tD + 1)
-    n_steps = np.maximum(n_steps, 0)  # if tD>K, simulate 0 steps
+    # If you want to drop discharges beyond horizon (no risk time within K), do it here:
+    # df = df.loc[n > 0].copy()
+    # n = n.loc[df.index]
 
-    # Build person-period post-discharge rows by repeating discharge rows
-    rep_idx = np.repeat(np.arange(n, dtype=int), n_steps)
-    post = disc.iloc[rep_idx].copy()
+    # Predicted per-interval hazard p_i
+    # statsmodels will use the formula design-info inside z_outcome_fit
+    p = z_outcome_fit.predict(df).astype(float)
 
-    # Create interval times for each repeated block: t = tD, tD+1, ..., K
-    start = np.repeat(tD, n_steps)
-    # within-block offset 0..(n_steps-1)
-    offset = np.arange(len(post)) - np.repeat(np.cumsum(n_steps) - n_steps, n_steps)
-    post[t_col] = start + offset
-    post["tD"] = start
-    post["tsd"] = post[t_col].to_numpy() - post["tD"].to_numpy()  # time since discharge
+    # Numerical safety
+    eps = 1e-12
+    p = np.clip(p, eps, 1 - eps)
 
-    # Predict hazards per interval
-    if zmodel_predict_custom is not None:
-        p = np.asarray(zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_fit), dtype=float)
-    else:
-        p = np.asarray(z_fit.predict(post), dtype=float)
+    # Probability of death by K under constant hazard over n intervals
+    q = 1.0 - np.power((1.0 - p), n)
 
-    p = np.clip(p, 0.0, 1.0)
+    death_by_K = simul_rng.binomial(n=1, p=q, size=len(df)).astype(int)
 
-    # Simulate Bernoulli per interval
-    u = simul_rng.uniform(size=len(p))
-    z = (u < p).astype(np.int8)
+    out = pd.DataFrame({
+        id_col: df[id_col].values if id_col in df.columns else np.arange(len(df)),
+        "tD": df[tD_col].values,
+        "n_intervals": n.values,
+        "p_interval": p,
+        "p_death_by_K": q,
+        "death_by_K": death_by_K,
+    }, index=df.index)
 
-    # Determine first event per admission (or none)
-    # We need, per admission, whether any z==1 occurred in its block.
-    # Create group boundaries
-    ends = np.cumsum(n_steps)
-    starts = ends - n_steps
+    if return_t_death:
+        # Sample time-to-death in intervals after discharge: T ~ Geometric(p)
+        # numpy geometric returns support {1,2,...}
+        T = rng.geometric(p, size=len(df))
 
-    Py = np.zeros(n, dtype=np.int8)
-    for i in range(n):
-        if n_steps[i] == 0:
-            Py[i] = 0
-            continue
-        block = z[starts[i]:ends[i]]
-        Py[i] = 1 if block.any() else 0
+        # Death occurs within horizon iff T <= n
+        died = (T <= n.values) & (death_by_K == 1)  # consistent with Bernoulli(q) draw
+        # If you prefer deterministic consistency, you can set died = (T <= n.values) and ignore death_by_K.
 
-    # Return series aligned to original input order/index
-    Py_series = pd.Series(Py, index=pool_with_A1_t0_t.index, name="Py")
-    return Py_series
+        t_death = np.full(len(df), np.nan)
+        t_death[died] = (df[tD_col].values[died] + (T[died] - 1)).astype(float)
 
+        out["t_death"] = t_death
+
+    return out
 
 
 def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
              outcome_type, rmses, bounds, intervention, intervention_function,
              custom_histvars, custom_histories, covpredict_custom, 
-             ymodel_predict_custom, 
-             zmodel_predict_custom, 
-             ymodel, 
              zmodel, 
-             outcome_fit, z_outcome_fit, 
+             z_outcome_fit, 
+             zmodel_predict_custom,  
+             #ymodel,
+             #outcome_fit, 
+             #ymodel_predict_custom, 
              outcome_name,
              competing, compevent_name, compevent_model, compevent_fit, compevent_cens, trunc_params,
              visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds, baselags, below_zero_indicator,
@@ -397,10 +386,13 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge hazard), i.e., P(Z).
                     #pre_z = outcome_fit.predict(pool_with_A1_t0_t)
                     #Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
+                #Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
+                pool_with_A1_t0_t_tD = pool_with_A1_t0_t.rename(columns={time_name: "tD"})
+                Z_A1_t0 = simulate_postdischarge_constant_hazard(pool_with_A1_t0_t_tD, z_outcome_fit, simul_rng)
+                death_by_K = Z_A1_t0['death_by_K']
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = death_by_K # Outcome Z is applied to Y
                     pool['Py'] = np.nan
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
@@ -664,10 +656,13 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 # Compute P(post-discharge mortality), i.e., P(Z). For now only computing outcome at discharge. Expand for hazard until K later.
                 #pre_z = outcome_fit.predict(pool_with_A1_t_t)
                 #Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
-                Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
+                #Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
+                pool_with_A1_t_t_tD = pool_with_A1_t_t.rename(columns={time_name: "tD"})
+                Z_A1_t = simulate_postdischarge_constant_hazard(pool_with_A1_t_t_tD, z_outcome_fit, simul_rng)
+                death_by_K = Z_A1_t['death_by_K']
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is the time of discharge.
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = death_by_K # Outcome Z is applied to Y. t is the time of discharge.
                     pool['Py'] = np.nan
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y

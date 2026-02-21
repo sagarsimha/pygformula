@@ -259,7 +259,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
     return covariate_fits, bounds, rmses, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 
-def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name, obs_data,
+'''def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name, obs_data,
                competing, compevent_name, return_fits, yrestrictions):
     """
     This is a function to fit parametric model for the outcome.
@@ -356,7 +356,7 @@ def fit_ymodel(ymodel, outcome_type, outcome_name, ymodel_fit_custom, time_name,
         model_vcovs[outcome_name] = outcome_fit.cov_params()
         model_fits_summary[outcome_name] = outcome_fit.summary()
 
-    return outcome_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
+    return outcome_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary'''
 
 
 def fit_compevent_model(compevent_model, compevent_name, time_name, obs_data, return_fits, compevent_restrictions):
@@ -663,7 +663,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    fit_data_Z.to_parquet("fit_data_Z.parquet")
+    #fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom lgb model for Z
@@ -671,9 +671,10 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     else:
         # GLM model for Z
         z_outcome_fit = smf.glm(
-                        zmodel,
+                        zmodel + " + tD",
                         data=fit_data_Z,                   # already only A==1 risk set
-                        family=sm.families.Binomial()).fit()
+                        family=sm.families.Binomial(),
+                        freq_weights=fit_data_Z["weight"]).fit()
 
     '''if zrestrictions is not None:
         for restriction in zrestrictions:
