@@ -12,8 +12,9 @@ from ..interventions import static
 def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, covnames,
               basecovs, cov_hist, time_points, n_simul, time_name, id, custom_histvars, custom_histories,
               covmodels, hazardratio, intcomp, covtypes, covfits_custom, covpredict_custom,
-              ymodel_fit_custom, ymodel_predict_custom,
-              ymodel, zmodel, z_outcome_fit, 
+              #ymodel_fit_custom, ymodel_predict_custom,
+              #ymodel, 
+              zmodel, z_outcome_fit, 
               zmodel_fit_custom,
               zmodel_predict_custom,
               outcome_type, outcome_name, competing, compevent_name, compevent_model, compevent_cens,
@@ -218,11 +219,11 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                                 max_visits=max_visits, ts_visit_names=ts_visit_names,
                                 visit_covs=visit_covs, restrictions=restrictions)
 
-        outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
+        '''outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
             fit_ymodel(ymodel=ymodel, outcome_type=outcome_type, outcome_name=outcome_name,
                               ymodel_fit_custom=ymodel_fit_custom, time_name=time_name, obs_data=resample_data,
                               competing=competing, compevent_name=compevent_name, return_fits=boot_diag,
-                              yrestrictions=yrestrictions)
+                              yrestrictions=yrestrictions)'''
         
         # Model for in-icu death (I)
         I_fit, I_model_coeffs, I_model_stderrs, I_model_vcovs, I_model_fits_summary = \
