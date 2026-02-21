@@ -392,8 +392,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 death_by_K = Z_A1_t0['death_by_K']
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = death_by_K # Outcome Z is applied to Y
-                    pool['Py'] = np.nan
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z 
+                    pool['Z_hat'] = np.nan
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Y_hat'] = death_by_K # Outcome Z is applied to Y
+                    pool['Y_hat'] = np.nan
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
@@ -423,7 +425,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_I1_t0)]  # Remove ids with I=1, t=0 (A=0) from pool
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
-                pool_with_I1_t0['Py'] = 1
+                pool_with_I1_t0['I_hat'] = 1
+                pool_with_I1_t0['Y_hat'] = 1
 
                 final_df_list.append(pool_with_I1_t0)  # store them in global list for concatenation at the end
 
@@ -662,8 +665,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 death_by_K = Z_A1_t['death_by_K']
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = death_by_K # Outcome Z is applied to Y. t is the time of discharge.
-                    pool['Py'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z. t is the time of discharge.
+                    pool['Z_hat'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Y_hat'] = death_by_K # Outcome Z is applied to Y. t is the time of discharge.
+                    pool['Y_hat'] = np.nan
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
@@ -693,7 +698,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_I1_t)]  # Remove ids with I=1, t (A=0) from pool
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
-                pool_with_I1_t['Py'] = 1
+                pool_with_I1_t['I_hat'] = 1
+                pool_with_I1_t['Y_hat'] = 1
 
                 final_df_list.append(pool_with_I1_t)  # store them in global list for concatenation at the end
 
@@ -701,6 +707,17 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
     # Changes for NC and dynamic
     # Concatenate all dataframes at different t into a single DataFrame pool
     if True: #intervention_function != static:
+
+        # Leftover stays at end-of-follow-up: enforce Case 4 terminal outcomes
+        print(pool[id].nunique(), 'unique ids in pool after simulation')
+        pool["I_hat"] = pool.get("I_hat", 0)
+        pool["I_hat"] = pool["I_hat"].fillna(0).astype(int)
+
+        pool["Z_hat"] = np.nan  # undefined since A=0
+
+        pool["Y_hat"] = pool.get("Y_hat", 0)
+        pool["Y_hat"] = pool["Y_hat"].fillna(0).astype(int)
+
         final_df_list.append(pool)
         pool = pd.concat(final_df_list, ignore_index=True)
         pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
@@ -733,10 +750,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
     if outcome_type == 'binary_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Py'].mean()
-        final_result_stay = pool.groupby(id).agg(D=("D","max"), A=("A","max"), Z=("Z","max"))
+        final_result_stay = pool.groupby(id).agg(D=("I_hat","max"), A=("A","max"), Z=("Z_hat","max"))
         Y = ((final_result_stay["D"] == 1) | ((final_result_stay["A"] == 1) & (final_result_stay["Z"] == 1))).astype(int)
-        avg_Y = Y.mean()
-        g_result = avg_Y
+        g_result = Y.mean()
 
     return {'g_result': g_result, 'pool': pool}
 
