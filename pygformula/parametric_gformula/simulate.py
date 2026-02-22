@@ -758,9 +758,33 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
     if outcome_type == 'binary_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Py'].mean()
-        final_result_stay = pool.groupby(id).agg(D=("I_hat","max"), A=("A","max"), Z=("Z_hat","max"))
-        Y = ((final_result_stay["D"] == 1) | ((final_result_stay["A"] == 1) & (final_result_stay["Z"] == 1))).astype(int)
-        g_result = Y.mean()
+        #final_result_stay = pool.groupby(id).agg(D=("I_hat","max"), A=("A","max"), Z=("Z_hat","max"))
+        #Y = ((final_result_stay["D"] == 1) | ((final_result_stay["A"] == 1) & (final_result_stay["Z"] == 1))).astype(int)
+        #g_result = Y.mean()
+
+        # Ensure sorted
+        pool = pool.sort_values([id, time_name])
+
+        # Initialize Y_hat as NaN everywhere
+        pool["Y_hat"] = np.nan
+
+        # Identify last row per stay
+        last_idx = pool.groupby(id, sort=False).tail(1).index
+
+        # Extract needed columns on last rows
+        A_last = pool.loc[last_idx, "A"]
+        I_last = pool.loc[last_idx, "I_hat"]
+        Z_last = pool.loc[last_idx, "Z_hat"]
+
+        # Compute Y_hat according to your rule (without filling NaNs globally)
+        Y_last = (
+            (I_last == 1) |
+            ((A_last == 1) & (Z_last == 1))
+        ).astype(int)
+
+        # Assign only to terminal rows
+        pool.loc[last_idx, "Y_hat"] = Y_last
+        g_result = pool.loc[last_idx, "Y_hat"].mean()
 
     return {'g_result': g_result, 'pool': pool}
 
