@@ -227,7 +227,30 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
 
         if outcome_type == 'binary_eof' or outcome_type == 'continuous_eof':
             #obs_mean_Ey = obs_data.loc[obs_data[time_name] == time_points - 1][outcome_name].mean()
-            obs_mean_Ey = obs_data.groupby(id).tail(1)[outcome_name].mean()
+            #obs_mean_Ey = obs_data.groupby(id).tail(1)[outcome_name].mean()
+            # Ensure sorted
+            obs_data = obs_data.sort_values([id, time_name])
+
+            # Initialize Y as NaN everywhere
+            obs_data["Y"] = np.nan
+
+            # Identify last row per stay
+            last_idx = obs_data.groupby(id, sort=False).tail(1).index
+
+            # Extract needed columns on last rows
+            A_last = obs_data.loc[last_idx, "A"]
+            I_last = obs_data.loc[last_idx, "D"]
+            Z_last = obs_data.loc[last_idx, "Z"]
+
+            # Compute Y_hat according to your rule (without filling NaNs globally)
+            Y_last = (
+                (I_last == 1) |
+                ((A_last == 1) & (Z_last == 1))
+            ).astype(int)
+
+            # Assign only to terminal rows
+            obs_data.loc[last_idx, "Y"] = Y_last
+            obs_mean_Ey = obs_data.loc[last_idx, "Y"].mean()
 
         if outcome_type == 'survival':
             if competing and not compevent_cens:

@@ -28,7 +28,9 @@ def read_intervention_input(interventions, int_descript):
 def error_catch(obs_data, id, time_points, interventions, intervention_dicts, int_descript, custom_histvars,
                 custom_histories, covfits_custom, covpredict_custom, time_name, outcome_name, censor_name, censor_model,
                 ipw_cutoff_quantile, ipw_cutoff_value, outcome_type, ref_int, covnames = None, covtypes = None,
-                covmodels=None, ymodel=None, compevent_name=None, compevent_model=None, intcomp=None,
+                covmodels=None, 
+                #ymodel=None, 
+                compevent_name=None, compevent_model=None, intcomp=None,
                 trunc_params=None, basecovs=None, time_thresholds=None):
 
     """
@@ -158,8 +160,8 @@ def error_catch(obs_data, id, time_points, interventions, intervention_dicts, in
         raise ValueError('Missing time name in the observational data.')
     if outcome_name not in obs_data.columns:
         raise ValueError('Missing outcome name in the observational data.')
-    if ymodel is None:
-        raise ValueError('Missing outcome model.')
+    #if ymodel is None:
+    #    raise ValueError('Missing outcome model.')
     if outcome_type not in ['survival', 'continuous_eof', 'binary_eof']:
         raise ValueError('Please specify the outcome type as survival, continuous_eof, or binary_eof.')
 

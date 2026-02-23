@@ -114,11 +114,12 @@ def simulate_post_discharge_Z_from_discharge_rows(
 def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
              outcome_type, rmses, bounds, intervention, intervention_function,
              custom_histvars, custom_histories, covpredict_custom, 
-             ymodel_predict_custom, 
+             #ymodel_predict_custom, 
              zmodel_predict_custom, 
-             ymodel, 
+             #ymodel, 
              zmodel, 
-             outcome_fit, z_outcome_fit, 
+             #outcome_fit, 
+             z_outcome_fit, 
              outcome_name,
              competing, compevent_name, compevent_model, compevent_fit, compevent_cens, trunc_params,
              visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds, baselags, below_zero_indicator,
@@ -400,8 +401,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Py'] = Z_A1_t0 # Outcome Z is applied to Y
-                    pool['Py'] = np.nan
+                    pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Z_hat'] = Z_A1_t0 # Outcome Z is applied to Y
+                    pool_with_A1_t0["I_hat"] = 0 #In-ICU death is 0 for those discharged.
+                    pool['Z_hat'] = np.nan #For the rest of the pool
+
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
@@ -431,7 +434,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_I1_t0)]  # Remove ids with I=1, t=0 (A=0) from pool
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
-                pool_with_I1_t0['Py'] = 1
+                pool_with_I1_t0['I_hat'] = 1
+                pool_with_I1_t0['Z_hat'] = np.nan # For this cohort which suffered in-icu death, Z is NA.
+                pool['Z_hat'] = np.nan # For the rest of the pool
 
                 final_df_list.append(pool_with_I1_t0)  # store them in global list for concatenation at the end
 
@@ -667,8 +672,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
 
                 if outcome_type == 'binary_eof':
-                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Py'] = Z_A1_t # Outcome Z is applied to Y. t is the time of discharge.
-                    pool['Py'] = np.nan
+                    pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Z_hat'] = Z_A1_t # Outcome Z is applied to Y. t is the time of discharge.
+                    pool_with_A1_t["I_hat"] = 0 #In-ICU death is 0 for those discharged.
+                    pool['Z_hat'] = np.nan # For the rest of the pool
+
                 '''if outcome_type == 'continuous_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Ey'] = pre_y
                     pool['Ey'] = np.nan'''
@@ -698,18 +705,37 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_I1_t)]  # Remove ids with I=1, t (A=0) from pool
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
-                pool_with_I1_t['Py'] = 1
+                pool_with_I1_t['I_hat'] = 1
+                pool_with_I1_t['Z_hat'] = np.nan # For this cohort which suffered in-icu death, Z is NA.
+                pool['Z_hat'] = np.nan # For the rest of the pool
 
                 final_df_list.append(pool_with_I1_t)  # store them in global list for concatenation at the end
 
 
+    
     # Changes for NC and dynamic
     # Concatenate all dataframes at different t into a single DataFrame pool
-    if True: #intervention_function != static:
-        final_df_list.append(pool)
-        pool = pd.concat(final_df_list, ignore_index=True)
-        pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
-        pool.reset_index(drop=True, inplace=True)
+
+    # pool is now leftover stays at end-of-follow-up still in care: enforce Case 4 terminal outcomes
+    #print(pool[id].nunique(), 'unique ids in pool after simulation')
+    
+    # 1) Set I_hat = 0 for all rows
+    pool["I_hat"] = 0
+
+    # 2) Set Z_hat = NaN for all rows
+    pool["Z_hat"] = np.nan
+
+    # 3) Set Y_hat = NaN for all rows, then set last row per stay_id to 0
+    pool["Y_hat"] = np.nan
+
+    last_idx = pool.sort_values([id, time_name]).groupby(id, sort=False).tail(1).index
+    pool.loc[last_idx, "Y_hat"] = 0
+
+    # Concatenate all
+    final_df_list.append(pool)
+    pool = pd.concat(final_df_list, ignore_index=True)
+    pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
+    pool.reset_index(drop=True, inplace=True)
     #############################################################
 
     pool = pool[pool[time_name] >= 0]
@@ -736,18 +762,36 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Ey'].mean()
         g_result = pool.groupby(id).tail(1)['Ey'].mean()'''
 
+    
     if outcome_type == 'binary_eof':
         #g_result = pool.loc[pool[time_name] == time_points - 1]['Py'].mean()
+        #final_result_stay = pool.groupby(id).agg(D=("I_hat","max"), A=("A","max"), Z=("Z_hat","max"))
+        #Y = ((final_result_stay["D"] == 1) | ((final_result_stay["A"] == 1) & (final_result_stay["Z"] == 1))).astype(int)
+        #g_result = Y.mean()
 
-        # --- Administrative end-of-follow-up: if a subject is still in ICU (A=0) and never had Py assigned,
-        # declare them a survivor at K by setting Py=0 on their final simulated row only.
-        last_idx = pool.groupby(id, sort=False)[time_name].idxmax()
-        last_rows = pool.loc[last_idx, [id, 'A', 'Py']]
+        # Ensure sorted
+        pool = pool.sort_values([id, time_name])
 
-        mask = (last_rows['A'] == 0) & (last_rows['Py'].isna())
-        pool.loc[last_rows.index[mask], 'Py'] = 0
-        
-        g_result = pool.groupby(id).tail(1)['Py'].mean()
+        # Initialize Y_hat as NaN everywhere
+        pool["Y_hat"] = np.nan
+
+        # Identify last row per stay
+        last_idx = pool.groupby(id, sort=False).tail(1).index
+
+        # Extract needed columns on last rows
+        A_last = pool.loc[last_idx, "A"]
+        I_last = pool.loc[last_idx, "I_hat"]
+        Z_last = pool.loc[last_idx, "Z_hat"]
+
+        # Compute Y_hat according to your rule (without filling NaNs globally)
+        Y_last = (
+            (I_last == 1) |
+            ((A_last == 1) & (Z_last == 1))
+        ).astype(int)
+
+        # Assign only to terminal rows
+        pool.loc[last_idx, "Y_hat"] = Y_last
+        g_result = pool.loc[last_idx, "Y_hat"].mean()
 
     return {'g_result': g_result, 'pool': pool}
 

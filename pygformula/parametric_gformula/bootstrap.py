@@ -4,7 +4,7 @@ import warnings
 from lifelines import CoxPHFitter
 from .histories import update_precoded_history, update_custom_history
 from .simulate import simulate
-from .fit import fit_covariate_model, fit_ymodel, fit_compevent_model, fit_I_model, fit_zmodel
+from .fit import fit_covariate_model, fit_compevent_model, fit_I_model, fit_zmodel #fit_ymodel
 from ..utils.helper import hr_data_helper, hr_comp_data_helper
 from ..interventions import static
 
@@ -12,8 +12,9 @@ from ..interventions import static
 def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, covnames,
               basecovs, cov_hist, time_points, n_simul, time_name, id, custom_histvars, custom_histories,
               covmodels, hazardratio, intcomp, covtypes, covfits_custom, covpredict_custom,
-              ymodel_fit_custom, ymodel_predict_custom,
-              ymodel, zmodel, z_outcome_fit, 
+              #ymodel_fit_custom, ymodel_predict_custom,
+              #ymodel, 
+              zmodel, z_outcome_fit, 
               zmodel_fit_custom,
               zmodel_predict_custom,
               outcome_type, outcome_name, competing, compevent_name, compevent_model, compevent_cens,
@@ -218,11 +219,11 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                                 max_visits=max_visits, ts_visit_names=ts_visit_names,
                                 visit_covs=visit_covs, restrictions=restrictions)
 
-        outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
+        '''outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
             fit_ymodel(ymodel=ymodel, outcome_type=outcome_type, outcome_name=outcome_name,
                               ymodel_fit_custom=ymodel_fit_custom, time_name=time_name, obs_data=resample_data,
                               competing=competing, compevent_name=compevent_name, return_fits=boot_diag,
-                              yrestrictions=yrestrictions)
+                              yrestrictions=yrestrictions)'''
         
         # Model for in-icu death (I)
         I_fit, I_model_coeffs, I_model_stderrs, I_model_vcovs, I_model_fits_summary = \
@@ -237,10 +238,18 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                               competing=competing, compevent_name=compevent_name, return_fits=boot_diag,
                               zrestrictions = None)
 
-        model_coeffs = {**cov_model_coeffs, **ymodel_coeffs, **I_model_coeffs, **zmodel_coeffs}
-        model_stderrs = {**cov_model_stderrs, **ymodel_stderrs, **I_model_stderrs, **zmodel_stderrs}
-        model_vcovs = {**cov_model_vcovs, **ymodel_vcovs, **I_model_vcovs, **zmodel_vcovs}
-        model_fits_summary = {**cov_model_fits_summary, **ymodel_fits_summary, **I_model_fits_summary, **zmodel_fits_summary}
+        model_coeffs = {**cov_model_coeffs, 
+                        #**ymodel_coeffs, 
+                        **I_model_coeffs, **zmodel_coeffs}
+        model_stderrs = {**cov_model_stderrs, 
+                         #**ymodel_stderrs, 
+                         **I_model_stderrs, **zmodel_stderrs}
+        model_vcovs = {**cov_model_vcovs, 
+                       #**ymodel_vcovs, 
+                       **I_model_vcovs, **zmodel_vcovs}
+        model_fits_summary = {**cov_model_fits_summary, 
+                              #**ymodel_fits_summary, 
+                              **I_model_fits_summary, **zmodel_fits_summary}
 
         if competing:
             compevent_fit, comp_model_coeffs, comp_model_stderrs, comp_model_vcovs, comp_model_fits_summary = \
@@ -299,8 +308,9 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                                        
             
                                        custom_histvars = custom_histvars, custom_histories=custom_histories,
-                                       covpredict_custom=covpredict_custom, ymodel=ymodel,
-                                       ymodel_predict_custom=ymodel_predict_custom,
+                                       covpredict_custom=covpredict_custom, 
+                                       #ymodel=ymodel,
+                                       #ymodel_predict_custom=ymodel_predict_custom,
                                        
                                        zmodel=zmodel, zmodel_predict_custom=zmodel_predict_custom, z_outcome_fit=z_outcome_fit,
                                        

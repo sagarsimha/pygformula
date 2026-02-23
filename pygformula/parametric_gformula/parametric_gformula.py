@@ -34,7 +34,7 @@ import os
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from lifelines import CoxPHFitter
-from .fit import fit_covariate_model, fit_ymodel, fit_compevent_model, fit_censor_model, fit_I_model, fit_zmodel
+from .fit import fit_covariate_model, fit_compevent_model, fit_censor_model, fit_I_model, fit_zmodel #fit_ymodel
 from .histories import update_precoded_history, update_custom_history
 from .simulate import simulate
 from .bootstrap import Bootstrap
@@ -237,7 +237,7 @@ class ParametricGformula:
                  time_name,
                  outcome_name,
                  zmodel,
-                 ymodel,
+                 #ymodel,
                  covnames = None,
                  covtypes = None,
                  covmodels=None,
@@ -246,8 +246,8 @@ class ParametricGformula:
                  custom_histories=None,
                  covfits_custom=None,
                  covpredict_custom=None,
-                 ymodel_fit_custom=None,
-                 ymodel_predict_custom=None,
+                 #ymodel_fit_custom=None,
+                 #ymodel_predict_custom=None,
                  zmodel_fit_custom=None,
                  zmodel_predict_custom=None,
                  nsamples=0,
@@ -293,15 +293,15 @@ class ParametricGformula:
         self.covtypes = covtypes
         self.covmodels = covmodels
         self.zmodel = zmodel
-        self.ymodel = ymodel
+        #self.ymodel = ymodel
         self.int_descript = int_descript
         self.interventions = interventions
         self.custom_histvars = custom_histvars
         self.custom_histories = custom_histories
         self.covfits_custom = covfits_custom
         self.covpredict_custom = covpredict_custom
-        self.ymodel_fit_custom = ymodel_fit_custom
-        self.ymodel_predict_custom = ymodel_predict_custom
+        #self.ymodel_fit_custom = ymodel_fit_custom
+        #self.ymodel_predict_custom = ymodel_predict_custom
         self.zmodel_fit_custom = zmodel_fit_custom
         self.zmodel_predict_custom = zmodel_predict_custom
         self.nsamples = nsamples
@@ -383,7 +383,9 @@ class ParametricGformula:
 
         if self.covmodels is not None:
             # This function prepares relevant column (names) of history variables for each covariate from model signatures.
-            self.cov_hist = get_cov_hist_info(self.covnames, self.covmodels, self.covtypes, self.ymodel, self.zmodel,
+            self.cov_hist = get_cov_hist_info(self.covnames, self.covmodels, self.covtypes, 
+                                              #self.ymodel, 
+                                              self.zmodel,
                                          self.compevent_model, self.censor_model, self.visit_covs, self.ts_visit_names)
         else:
             self.cov_hist = None
@@ -397,7 +399,8 @@ class ParametricGformula:
                     custom_histories = self.custom_histories,
                     covfits_custom = self.covfits_custom, covpredict_custom = covpredict_custom,
                     outcome_name=self.outcome_name, covnames=self.covnames, covtypes=self.covtypes,
-                    covmodels=self.covmodels, ymodel=self.ymodel,
+                    covmodels=self.covmodels, 
+                    #ymodel=self.ymodel,
                     compevent_name=self.compevent_name, compevent_model=self.compevent_model,
                     intcomp=self.intcomp, time_thresholds=self.time_thresholds,
                     censor_name=self.censor_name, censor_model=self.censor_model,
@@ -455,7 +458,7 @@ class ParametricGformula:
                 'covtypes': self.covtypes,
                 'covmodels': self.covmodels,
                 'zmodel': self.zmodel,
-                'ymodel': self.ymodel,
+                #'ymodel': self.ymodel,
                 'int_descript': self.int_descript,
                 'nsamples': self.nsamples,
                 'competing': self.competing,
@@ -579,7 +582,7 @@ class ParametricGformula:
         all_model_fits.update({'Z': z_outcome_fit})
         
         # Model for Y. Unused for now.
-        outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
+        '''outcome_fit, ymodel_coeffs, ymodel_stderrs, ymodel_vcovs, ymodel_fits_summary = \
             fit_ymodel(ymodel=self.ymodel, outcome_type=self.outcome_type,
                               outcome_name=self.outcome_name, ymodel_fit_custom=self.ymodel_fit_custom,
                               time_name=self.time_name, obs_data=self.obs_data,
@@ -589,7 +592,7 @@ class ParametricGformula:
         model_stderrs.update(ymodel_stderrs)
         model_vcovs.update(ymodel_vcovs)
         model_fits_summary.update(ymodel_fits_summary)
-        all_model_fits.update({'Y': outcome_fit})
+        all_model_fits.update({'Y': outcome_fit})'''
 
         if self.competing:
             compevent_fit, comp_model_coeffs, comp_model_stderrs, comp_model_vcovs, comp_model_fits_summary = \
@@ -657,10 +660,11 @@ class ParametricGformula:
                                     ),
                                    custom_histvars = self.custom_histvars, custom_histories=self.custom_histories,
                                    covpredict_custom = self.covpredict_custom, 
-                                   ymodel_predict_custom=self.ymodel_predict_custom,
+                                   #ymodel_predict_custom=self.ymodel_predict_custom,
                                    zmodel_predict_custom=self.zmodel_predict_custom,
                                    zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
-                                   ymodel = self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
+                                   #ymodel = self.ymodel, outcome_fit=outcome_fit, 
+                                   outcome_name=self.outcome_name,
                                    competing=self.competing, compevent_name=self.compevent_name,
                                    compevent_fit=compevent_fit, compevent_model=self.compevent_model,
                                    compevent_cens=self.compevent_cens,
@@ -702,10 +706,11 @@ class ParametricGformula:
                                            intervention_function=intervention_function,
                                            custom_histvars=self.custom_histvars, custom_histories=self.custom_histories,
                                            covpredict_custom=self.covpredict_custom,
-                                           ymodel_predict_custom=self.ymodel_predict_custom,
+                                           #ymodel_predict_custom=self.ymodel_predict_custom,
                                            zmodel_predict_custom=self.zmodel_predict_custom,
                                            zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
-                                           ymodel=self.ymodel, outcome_fit=outcome_fit, outcome_name=self.outcome_name,
+                                           #ymodel=self.ymodel, outcome_fit=outcome_fit, 
+                                           outcome_name=self.outcome_name,
                                            competing=self.competing, compevent_name=self.compevent_name,
                                            compevent_fit=compevent_fit, compevent_model=self.compevent_model,
                                            compevent_cens=self.compevent_cens,
@@ -811,10 +816,11 @@ class ParametricGformula:
                                                  covpredict_custom=self.covpredict_custom,
                                                  covmodels=self.covmodels, hazardratio=self.hazardratio,
                                                  intcomp=self.intcomp, covtypes=self.covtypes,
-                                                 covfits_custom=self.covfits_custom, ymodel=self.ymodel, 
+                                                 covfits_custom=self.covfits_custom, 
+                                                 #ymodel=self.ymodel, 
                                                  zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
-                                                 ymodel_fit_custom=self.ymodel_fit_custom,
-                                                 ymodel_predict_custom=self.ymodel_predict_custom,
+                                                 #ymodel_fit_custom=self.ymodel_fit_custom,
+                                                 #ymodel_predict_custom=self.ymodel_predict_custom,
                                                  zmodel_fit_custom=self.zmodel_fit_custom,
                                                  zmodel_predict_custom=self.zmodel_predict_custom,
                                                  outcome_type=self.outcome_type, outcome_name=self.outcome_name,
@@ -846,10 +852,11 @@ class ParametricGformula:
                                                  covpredict_custom=self.covpredict_custom,
                                                  covmodels=self.covmodels, hazardratio=self.hazardratio,
                                                  intcomp=self.intcomp, covtypes=self.covtypes,
-                                                 covfits_custom=self.covfits_custom, ymodel=self.ymodel, 
+                                                 covfits_custom=self.covfits_custom, 
+                                                 #ymodel=self.ymodel, 
                                                  zmodel=self.zmodel, z_outcome_fit=z_outcome_fit, 
-                                                 ymodel_fit_custom=self.ymodel_fit_custom,
-                                                 ymodel_predict_custom=self.ymodel_predict_custom,
+                                                 #ymodel_fit_custom=self.ymodel_fit_custom,
+                                                 #ymodel_predict_custom=self.ymodel_predict_custom,
                                                  zmodel_fit_custom=self.zmodel_fit_custom,
                                                  zmodel_predict_custom=self.zmodel_predict_custom,
                                                  outcome_type=self.outcome_type, outcome_name=self.outcome_name,
