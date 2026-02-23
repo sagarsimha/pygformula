@@ -85,7 +85,7 @@ def simulate_postdischarge_constant_hazard(
     if return_t_death:
         # Sample time-to-death in intervals after discharge: T ~ Geometric(p)
         # numpy geometric returns support {1,2,...}
-        T = rng.geometric(p, size=len(df))
+        T = simul_rng.geometric(p, size=len(df))
 
         # Death occurs within horizon iff T <= n
         died = (T <= n.values) & (death_by_K == 1)  # consistent with Bernoulli(q) draw
@@ -393,8 +393,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z 
-                    pool_with_A1_t0["I_hat"] = 0 #In-ICU death is 0 for those discharged.
-
+                    pool_with_A1_t0["I_hat"] = np.nan #In-ICU death is NA for those discharged.
                     pool['Z_hat'] = np.nan # For the rest of the pool
 
                 '''if outcome_type == 'continuous_eof':
@@ -566,7 +565,6 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
             if (intervention_function == static) and (t == time_points - 1):
                 new_df.loc[new_df[time_name] == t, 'A'] = 1
             
-
             pool.loc[pool[time_name] == t] = new_df
             if covnames is not None:
                 update_precoded_history(pool, covnames, cov_hist, covtypes, time_name, id, below_zero_indicator,
@@ -668,7 +666,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z. t is the time of discharge.
-                    pool_with_A1_t["I_hat"] = 0 #In-ICU death is 0 for those discharged.
+                    pool_with_A1_t["I_hat"] = np.nan #In-ICU death is NA for those discharged.
                     pool['Z_hat'] = np.nan # For the rest of the pool
 
                 '''if outcome_type == 'continuous_eof':
@@ -719,9 +717,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
     # 2) Set Z_hat = NaN for all rows
     pool["Z_hat"] = np.nan
 
-    # 3) Set Y_hat = NaN for all rows, then set last row per stay_id to 0
+    # 3) Set Y_hat = NaN for all rows, then set last row per stay_id to 0. The below gets overwritten with nan. change later! for now. okay!
     pool["Y_hat"] = np.nan
-
     last_idx = pool.sort_values([id, time_name]).groupby(id, sort=False).tail(1).index
     pool.loc[last_idx, "Y_hat"] = 0
 
