@@ -46,7 +46,7 @@ from ..plot import plot_natural_course, plot_interventions
 
 from ..interventions import static
 
-
+#
 class ParametricGformula:
     """
     G-formula estimation under parametric models.
