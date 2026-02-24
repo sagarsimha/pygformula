@@ -433,29 +433,35 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 #pre_i = I_fit.predict(pool_with_A0_t0_t)
                 # Get feature list from trained LightGBM model
                 I_features = list(I_fit.feature_name_)
+                # If no one is at risk (A==0 pool empty) at this t, skip prediction
+                if pool_with_A0_t0_t.shape[0] == 0:
+                    pre_i = pd.Series([], dtype=float, index=pool_with_A0_t0_t.index, name="I_prob")
+                else:
+                    # Build design matrix with correct columns and order
+                    X_I = pool_with_A0_t0_t.reindex(columns=I_features).copy()
 
-                # Build design matrix with correct columns and order
-                X_I = pool_with_A0_t0_t.reindex(columns=I_features).copy()
+                    # Ensure categorical dtype consistency (if used during training)
+                    if 'vent_mode__last__last_12h' in X_I.columns:
+                        X_I['vent_mode__last__last_12h'] = X_I['vent_mode__last__last_12h'].astype('category')
 
-                # Ensure categorical dtype consistency (if used during training)
-                if 'vent_mode__last__last_12h' in X_I.columns:
-                    X_I['vent_mode__last__last_12h'] = X_I['vent_mode__last__last_12h'].astype('category')
+                    # Predict probabilities
+                    pre_i = pd.Series(
+                        I_fit.predict_proba(X_I)[:, 1],
+                        index=pool_with_A0_t0_t.index,
+                        name="I_prob"
+                    )
 
-                # Predict probabilities
-                pre_i = pd.Series(
-                    I_fit.predict_proba(X_I)[:, 1],
-                    index=pool_with_A0_t0_t.index,
-                    name="I_prob"
-                )
-
-                # Numerical safety (very important in simulation)
-                pre_i = (
-                    pd.to_numeric(pre_i, errors="coerce")
-                    .fillna(0.0)
-                    .clip(1e-12, 1 - 1e-12)
-                )
+                    # Numerical safety (very important in simulation)
+                    pre_i = (
+                        pd.to_numeric(pre_i, errors="coerce")
+                        .fillna(0.0)
+                        .clip(1e-12, 1 - 1e-12)
+                    )
                 
-                I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
+                if len(pre_i) == 0:
+                    I_t = np.array([], dtype=int)
+                else:
+                    I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t0_t['I_hat'] = I_t0
 
                 ids_with_I1_t0 = pool_with_A0_t0_t.loc[pool_with_A0_t0_t['I_hat'] == 1, id].unique()    # ids with I=1 at t=0 (A=0 as well)
@@ -737,29 +743,35 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 # Get feature list from trained LightGBM model
                 I_features = list(I_fit.feature_name_)
 
-                # Build design matrix with correct columns and order
-                X_I = pool_with_A0_t_t.reindex(columns=I_features).copy()
+                # If no one is at risk (A==0 pool empty) at this t, skip prediction
+                if pool_with_A0_t_t.shape[0] == 0:
+                    pre_i = pd.Series([], dtype=float, index=pool_with_A0_t_t.index, name="I_prob")
+                else:
+                    # Build design matrix with correct columns and order
+                    X_I = pool_with_A0_t_t.reindex(columns=I_features).copy()
 
-                # Ensure categorical dtype consistency (if used during training)
-                if 'vent_mode__last__last_12h' in X_I.columns:
-                    X_I['vent_mode__last__last_12h'] = X_I['vent_mode__last__last_12h'].astype('category')
+                    # Ensure categorical dtype consistency (if used during training)
+                    if 'vent_mode__last__last_12h' in X_I.columns:
+                        X_I['vent_mode__last__last_12h'] = X_I['vent_mode__last__last_12h'].astype('category')
 
-                # Predict probabilities
-                pre_i = pd.Series(
-                    I_fit.predict_proba(X_I)[:, 1],
-                    index=pool_with_A0_t_t.index,
-                    name="I_prob"
-                )
+                    # Predict probabilities
+                    pre_i = pd.Series(
+                        I_fit.predict_proba(X_I)[:, 1],
+                        index=pool_with_A0_t_t.index,
+                        name="I_prob"
+                    )
 
-                # Numerical safety (very important in simulation)
-                pre_i = (
-                    pd.to_numeric(pre_i, errors="coerce")
-                    .fillna(0.0)
-                    .clip(1e-12, 1 - 1e-12)
-                )
+                    # Numerical safety (very important in simulation)
+                    pre_i = (
+                        pd.to_numeric(pre_i, errors="coerce")
+                        .fillna(0.0)
+                        .clip(1e-12, 1 - 1e-12)
+                    )
 
-
-                I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)
+                if len(pre_i) == 0:
+                    I_t = np.array([], dtype=int)
+                else:
+                    I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t_t['I_hat'] = I_t
 
                 ids_with_I1_t = pool_with_A0_t_t.loc[pool_with_A0_t_t['I_hat'] == 1, id].unique()    # ids with I=1 at t (A=0 as well)
