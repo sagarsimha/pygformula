@@ -645,8 +645,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_hemoglobin__last__last_12h",
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
-        "cumavg_bicarbonate_arterial__last__last_12h",
-        "t0"
+        "cumavg_bicarbonate_arterial__last__last_12h"
     ]
 
     # Reweigh rows
