@@ -49,6 +49,9 @@ def simulate_postdischarge_constant_hazard(
 
     df = pool_with_A1_t_t.copy()
 
+    if df.shape[0] == 0:
+        return pd.DataFrame(index=df.index, columns=[id_col, "tD", "death_by_K"])
+
     # Basic checks
     if tD_col not in df.columns:
         raise KeyError(f"'{tD_col}' not found. Set tD_col to your discharge index column (e.g. 't0').")
@@ -65,11 +68,14 @@ def simulate_postdischarge_constant_hazard(
     # Predicted per-interval hazard p_i
     if zmodel_predict_custom is not None:
         p = zmodel_predict_custom(zmodel=zmodel, new_df=df, fit=z_outcome_fit)
+        #p.to_csv("debug_zmodel_predict_custom.csv")
+        #print("Number is", n)
     else:
         # statsmodels will use the formula design-info inside z_outcome_fit
         p = z_outcome_fit.predict(df).astype(float)
 
     # Numerical safety
+    p = p.astype(float).to_numpy()
     eps = 1e-12
     p = np.clip(p, eps, 1 - eps)
 
@@ -425,6 +431,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Compute P(in-icu mortality).
                 pre_i = I_fit.predict(pool_with_A0_t0_t)
+                pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
+
                 I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t0_t['I_hat'] = I_t0
 
@@ -702,6 +710,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Compute P(in-icu mortality).
                 pre_i = I_fit.predict(pool_with_A0_t_t)
+                pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
+
                 I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t_t['I_hat'] = I_t
 
