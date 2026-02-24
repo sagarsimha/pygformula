@@ -628,7 +628,6 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     sub_data = obs_data[obs_data[time_name] >= 0]
 
     z_covs = [
-        "A",
         "vent_mode__last__last_12h",
         "cumavg_vent_mode__hours_since_last__last_12h",
         "cumavg_pco2_arterial__mean__last_12h",
