@@ -6,6 +6,7 @@ import re
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pytruncreg import truncreg
+from pymer4.models import glmer
 
 
 def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name, obs_data, return_fits,
@@ -549,7 +550,11 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     fit_data = obs_data[obs_data[time_name] >= 0]
 
     fit_data = fit_data[fit_data[I_name].notna()]
-    I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
+    
+    #I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
+    I_fit = glmer(I_model + ' + (1 | subject_id)', data=fit_data, family='binomial')
+    I_fit.set_factors('subject_id')
+    
     if return_fits:
         model_coeffs[I_name] = I_fit.params
         model_stderrs[I_name] = I_fit.bse
@@ -669,11 +674,18 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         z_outcome_fit = zmodel_fit_custom(zmodel, fit_data_Z)
     else:
         # GLM model for Z
-        z_outcome_fit = smf.glm(
+        '''z_outcome_fit = smf.glm(
                         zmodel + " + tD",
                         data=fit_data_Z,                   # already only A==1 risk set
                         family=sm.families.Binomial(),
-                        freq_weights=fit_data_Z["weight"]).fit()
+                        freq_weights=fit_data_Z["weight"]).fit()'''
+        
+        z_outcome_fit = glmer(
+                        zmodel + ' + (1 | subject_id)',
+                        data=fit_data_Z,                   # already only A==1 risk set
+                        family=sm.families.Binomial(),
+                        weights=fit_data_Z["weight"]).fit()
+        z_outcome_fit.set_factors('subject_id')
 
     '''if zrestrictions is not None:
         for restriction in zrestrictions:
