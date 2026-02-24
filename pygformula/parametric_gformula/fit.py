@@ -6,6 +6,7 @@ import re
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pytruncreg import truncreg
+import lightgbm as lgb
 
 
 def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name, obs_data, return_fits,
@@ -546,15 +547,40 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     model_vcovs = {}
     model_fits_summary = {}
 
-    fit_data = obs_data[obs_data[time_name] >= 0]
+    fit_data = obs_data.loc[obs_data[time_name] >= 0].copy()
+    fit_data = fit_data.loc[fit_data[I_name].notna()].copy()
 
-    fit_data = fit_data[fit_data[I_name].notna()]
-    I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
+    # Parse formula: "I ~ x1 + x2 + ..."
+    y_name, rhs = re.split(r"~", I_model.replace(" ", ""))
+    x_names = [c for c in re.split(r"\+", rhs) if c]
+
+    y = fit_data[y_name].astype(int).to_numpy()
+    X = fit_data[x_names].copy()
+
+    # Optional: ensure categorical dtype if you have categorical predictors
+    if 'vent_mode__last__last_12h' in X.columns:
+        X['vent_mode__last__last_12h'] = X['vent_mode__last__last_12h'].astype('category')
+
+    I_fit = lgb.LGBMClassifier(
+        objective="binary",
+        deterministic=True,
+        force_col_wise=True,
+        n_jobs=1,
+        seed=133,
+        feature_fraction_seed=133,
+        bagging_seed=133,
+        drop_seed=133,
+        data_random_seed=133,
+    )
+
+    I_fit.fit(X, y)
+
     if return_fits:
-        model_coeffs[I_name] = I_fit.params
-        model_stderrs[I_name] = I_fit.bse
-        model_vcovs[I_name] = I_fit.cov_params()
-        model_fits_summary[I_name] = I_fit.summary()
+        # LightGBM doesn't have GLM-style params/bse/vcov; keep keys but set None
+        model_coeffs[I_name] = None
+        model_stderrs[I_name] = None
+        model_vcovs[I_name] = None
+        model_fits_summary[I_name] = I_fit  # store fitted model object for reference
 
     return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
@@ -666,7 +692,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
-        z_outcome_fit = zmodel_fit_custom(zmodel, fit_data_Z)
+        z_outcome_fit = zmodel_fit_custom(zmodel + " + tD", fit_data_Z)
     else:
         # GLM model for Z
         z_outcome_fit = smf.glm(

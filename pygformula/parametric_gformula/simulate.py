@@ -430,9 +430,31 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A0_t0_t = pool_with_A0_t0[pool_with_A0_t0[time_name] == t].copy() # Redundant for t0 since only 1 time point.
 
                 # Compute P(in-icu mortality).
-                pre_i = I_fit.predict(pool_with_A0_t0_t)
-                pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
+                #pre_i = I_fit.predict(pool_with_A0_t0_t)
+                # Get feature list from trained LightGBM model
+                I_features = list(I_fit.feature_name_)
 
+                # Build design matrix with correct columns and order
+                X_I = pool_with_A0_t0_t.reindex(columns=I_features).copy()
+
+                # Ensure categorical dtype consistency (if used during training)
+                if 'vent_mode__last__last_12h' in X_I.columns:
+                    X_I['vent_mode__last__last_12h'] = X_I['vent_mode__last__last_12h'].astype('category')
+
+                # Predict probabilities
+                pre_i = pd.Series(
+                    I_fit.predict_proba(X_I)[:, 1],
+                    index=pool_with_A0_t0_t.index,
+                    name="I_prob"
+                )
+
+                # Numerical safety (very important in simulation)
+                pre_i = (
+                    pd.to_numeric(pre_i, errors="coerce")
+                    .fillna(0.0)
+                    .clip(1e-12, 1 - 1e-12)
+                )
+                
                 I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t0_t['I_hat'] = I_t0
 
@@ -709,8 +731,33 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A0_t_t = pool_with_A0_t[pool_with_A0_t[time_name] == t].copy() # Pick current time point where A=0.
 
                 # Compute P(in-icu mortality).
-                pre_i = I_fit.predict(pool_with_A0_t_t)
-                pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
+                #pre_i = I_fit.predict(pool_with_A0_t_t)
+                #pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
+
+                # Get feature list from trained LightGBM model
+                I_features = list(I_fit.feature_name_)
+
+                # Build design matrix with correct columns and order
+                X_I = pool_with_A0_t_t.reindex(columns=I_features).copy()
+
+                # Ensure categorical dtype consistency (if used during training)
+                if 'vent_mode__last__last_12h' in X_I.columns:
+                    X_I['vent_mode__last__last_12h'] = X_I['vent_mode__last__last_12h'].astype('category')
+
+                # Predict probabilities
+                pre_i = pd.Series(
+                    I_fit.predict_proba(X_I)[:, 1],
+                    index=pool_with_A0_t_t.index,
+                    name="I_prob"
+                )
+
+                # Numerical safety (very important in simulation)
+                pre_i = (
+                    pd.to_numeric(pre_i, errors="coerce")
+                    .fillna(0.0)
+                    .clip(1e-12, 1 - 1e-12)
+                )
+
 
                 I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)
                 pool_with_A0_t_t['I_hat'] = I_t
