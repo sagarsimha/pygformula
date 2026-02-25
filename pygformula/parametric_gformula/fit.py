@@ -627,7 +627,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
     sub_data = obs_data[obs_data[time_name] >= 0]
 
-    z_covs = [
+    '''z_covs = [
         "vent_mode__last__last_12h",
         "cumavg_vent_mode__hours_since_last__last_12h",
         "cumavg_pco2_arterial__mean__last_12h",
@@ -646,6 +646,27 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
         "cumavg_bicarbonate_arterial__last__last_12h"
+    ]'''
+
+    z_covs = [
+        #"vent_mode__last__last_12h",
+        "vent_mode__hours_since_last__last_12h",
+        "pco2_arterial__mean__last_12h",
+        "po2_arterial__mean__last_12h",
+        "o2_flow__last__last_12h",
+        "o2_saturation__mean__last_12h",
+        "respiratory_rate_measured__mean__last_12h",
+        "glasgow_coma_scale_total__last__last_12h",
+        "lactate__last__last_12h",
+        "fluid_out_urine__mean__last_12h",
+        "ureum__last__last_12h",
+        "creatinine__last__last_12h",
+        "arterial_blood_pressure_mean__mean__last_12h",
+        "heart_rate__mean__last_12h",
+        "hemoglobin__last__last_12h",
+        "temperature__mean__last_12h",
+        "activated_partial_thromboplastin_time__last__last_12h",
+        "bicarbonate_arterial__last__last_12h"
     ]
 
     # Reweigh rows
