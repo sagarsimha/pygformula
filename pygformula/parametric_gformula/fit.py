@@ -627,8 +627,8 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
     sub_data = obs_data[obs_data[time_name] >= 0]
 
-    '''z_covs = [
-        "vent_mode__last__last_12h",
+    z_covs = [
+        #"vent_mode__last__last_12h",
         "cumavg_vent_mode__hours_since_last__last_12h",
         "cumavg_pco2_arterial__mean__last_12h",
         "cumavg_po2_arterial__mean__last_12h",
@@ -646,9 +646,9 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
         "cumavg_bicarbonate_arterial__last__last_12h"
-    ]'''
+    ]
 
-    z_covs = [
+    '''z_covs = [
         #"vent_mode__last__last_12h",
         "vent_mode__hours_since_last__last_12h",
         "pco2_arterial__mean__last_12h",
@@ -667,7 +667,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "temperature__mean__last_12h",
         "activated_partial_thromboplastin_time__last__last_12h",
         "bicarbonate_arterial__last__last_12h"
-    ]
+    ]'''
 
     # Reweigh rows
     fit_data_Z = build_postdischarge_weighted_rows(
