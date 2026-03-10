@@ -140,6 +140,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
             fit_data = fit_data[all_vars].dropna()
 
             if covtypes[k] == 'binary':
+                #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Binomial()).fit()
                 rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
                 covariate_fits[cov] = fit
@@ -154,6 +155,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                 min_cov = fit_data[cov].min()
                 max_cov = fit_data[cov].max()
                 bound = [min_cov, max_cov]
+                #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Gaussian()).fit()
                 #print(fit_data)
                 #print(fit.predict())
@@ -170,6 +172,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_fits_summary[cov] = fit.summary()
 
             elif covtypes[k] == 'categorical':
+                #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
                 fit_data[cov] = pd.Categorical(fit_data[cov]).codes
                 fit = smf.mnlogit(covmodels[k], data=fit_data).fit()
                 covariate_fits[cov] = fit
@@ -184,6 +187,9 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                 max_cov = fit_data[cov].max()
                 bound = [min_cov, max_cov]
                 fit_data[cov] = fit_data[cov].apply(lambda x: (x - min_cov) / (max_cov - min_cov))
+                
+                #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
+                
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Gaussian()).fit()
                 rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
                 bounds[cov] = bound
@@ -205,6 +211,9 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                 indicator_model = "~".join(['I_{0}'.format(cov), fit_model_name])
                 indicator_fit = smf.glm(indicator_model, data=fit_data, family=sm.families.Binomial()).fit()
                 log_nonzero_model = "~".join(['log_{0}'.format(cov), fit_model_name])
+                
+                #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
+
                 non_zero_fit = smf.glm(log_nonzero_model, data=fit_data[fit_data[cov] != 0],
                                        family=sm.families.Gaussian()).fit()
                 rmse = np.sqrt(np.mean((non_zero_fit.predict() - fit_data[fit_data[cov] != 0]['log_{0}'.format(cov)]) ** 2))
@@ -220,6 +229,9 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
             elif covtypes[k] == 'truncated normal':
                 truncation_value = trunc_params[k][0]
                 truncation_direction = trunc_params[k][1]
+                
+                #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
+                
                 fit_results = truncreg(formula=covmodels[k], data=fit_data, point=truncation_value, direction=truncation_direction)
                 covariate_fits[cov] = fit_results['result']
 
@@ -549,6 +561,7 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     fit_data = obs_data[obs_data[time_name] >= 0]
 
     fit_data = fit_data[fit_data[I_name].notna()]
+    fit_data.to_parquet("fit_data_I.parquet")
     I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
     if return_fits:
         model_coeffs[I_name] = I_fit.params
@@ -662,7 +675,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    #fit_data_Z.to_parquet("fit_data_Z.parquet")
+    fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
@@ -741,7 +754,9 @@ def build_postdischarge_weighted_rows(
         raise ValueError("Please pass z_covs list explicitly.")
 
     # ---- Minimal column checks (fail fast) ----
-    needed = {stay_col, t_col, ref_time_col, A_col, *z_covs}
+    #needed = {stay_col, t_col, ref_time_col, A_col, *z_covs}
+    needed = {stay_col, t_col, A_col, *z_covs}
+    
     missing = needed - set(df.columns)
     if missing:
         raise KeyError(f"Missing required columns: {sorted(missing)}")
@@ -751,7 +766,8 @@ def build_postdischarge_weighted_rows(
 
     # ---- 1) Identify unique discharge row per stay (A==1) ----
     discharge = (
-        df.loc[df[A_col] == 1, [stay_col, t_col, ref_time_col, *z_covs,
+        #df.loc[df[A_col] == 1, [stay_col, t_col, ref_time_col, *z_covs,
+        df.loc[df[A_col] == 1, [stay_col, t_col, *z_covs,
                                *( [death_td_col] if death_td_col in df.columns else [] ),
                                *( [death_abs_col] if death_abs_col in df.columns else [] )]]
           .drop_duplicates(subset=[stay_col], keep="first")
