@@ -259,6 +259,31 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_stderrs[cov] = cov_fit.bse
                     model_vcovs[cov] = cov_fit.cov_params()
                     model_fits_summary[cov] = cov_fit.summary()
+            
+            elif covtypes[k] == 'poisson':
+                # empirical bounds, typical for count covariates
+                min_cov = fit_data[cov].min()
+                max_cov = fit_data[cov].max()
+                bounds[cov] = [min_cov, max_cov]
+
+                # Fit Poisson GLM with canonical log link
+                fit = smf.glm(
+                    covmodels[k],
+                    data=fit_data,
+                    family=sm.families.Poisson()
+                ).fit()
+
+                # RMSE on the mean prediction scale
+                rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
+
+                covariate_fits[cov] = fit
+                rmses[cov] = rmse
+
+                if return_fits:
+                    model_coeffs[cov] = fit.params
+                    model_stderrs[cov] = fit.bse
+                    model_vcovs[cov] = fit.cov_params()
+                    model_fits_summary[cov] = fit.summary()
 
             elif covtypes[k] == 'custom':
                 fit_func = covfits_custom[k]
@@ -645,7 +670,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_vent_mode__hours_since_last__last_12h",
         "cumavg_pco2_arterial__mean__last_12h",
         "cumavg_po2_arterial__mean__last_12h",
-        "fio2__last__last_12h", #"o2_flow__last__last_12h", #"cumavg_o2_flow__last__last_12h",
+        "fio2__last__last_12h", #"cumavg_fio2__last__last_12h",
         "cumavg_o2_saturation__mean__last_12h",
         "cumavg_respiratory_rate_measured__mean__last_12h",
         "glasgow_coma_scale_total__last__last_12h", #"cumavg_glasgow_coma_scale_total__last__last_12h",

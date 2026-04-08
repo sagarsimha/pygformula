@@ -23,6 +23,9 @@ def norm_sample(mean, rmse, simul_rng):
 def truc_sample(mean, rmse, a, b):
     return truncnorm.rvs((a - mean) / rmse, (b - mean) / rmse, loc=mean, scale=rmse)
 
+def poisson_sample(lam, simul_rng):
+    return simul_rng.poisson(lam)
+
 def simulate_postdischarge_constant_hazard(
     pool_with_A1_t_t: pd.DataFrame,
     zmodel,
@@ -539,6 +542,13 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                             predict_prob = covariate_fits[cov].predict(new_df)
                             prediction = predict_prob.apply(binorm_sample, simul_rng=simul_rng)
                             prediction = np.where(pool.loc[pool[time_name] == t - 1, cov] == 0, prediction, 1)
+                            new_df[cov] = prediction
+                        
+                        elif covtypes[k] == 'poisson':
+                            estimated_mean = covariate_fits[cov].predict(new_df)
+                            prediction = estimated_mean.apply(poisson_sample, simul_rng=simul_rng)
+                            prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
+                            prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'custom':
