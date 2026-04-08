@@ -218,7 +218,7 @@ def error_catch(obs_data, id, time_points, interventions, intervention_dicts, in
             raise ValueError('covfits_custom and covpredict_custom should have the same length.')
 
     all_covtypes = ['binary', 'normal', 'categorical', 'bounded normal', 'zero-inflated normal', 'truncated normal',
-                    'absorbing', 'categorical time', 'square time', 'custom']
+                    'absorbing', 'categorical time', 'square time', 'poisson', 'custom']
 
     if covtypes is not None:
         for k, covtype in enumerate(covtypes):
