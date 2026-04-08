@@ -26,6 +26,35 @@ def truc_sample(mean, rmse, a, b):
 def poisson_sample(lam, simul_rng):
     return simul_rng.poisson(lam)
 
+def apply_bounds(prediction, cov, bounds, integer=False):
+    """
+    Enforce empirical bounds for a simulated covariate. Winsorization is applied.
+
+    Parameters
+    ----------
+    prediction : array-like or pd.Series
+        Simulated values.
+    cov : str
+        Covariate name.
+    bounds : dict
+        Dictionary of bounds from fit step.
+    integer : bool
+        If True, round to nearest integer after clipping.
+
+    Returns
+    -------
+    np.ndarray or pd.Series
+    """
+    if cov in bounds:
+        lower, upper = bounds[cov]
+        prediction = np.where(prediction < lower, lower, prediction)
+        prediction = np.where(prediction > upper, upper, prediction)
+
+    if integer:
+        prediction = np.round(prediction).astype(int)
+
+    return prediction
+
 def simulate_postdischarge_constant_hazard(
     pool_with_A1_t_t: pd.DataFrame,
     zmodel,
@@ -488,9 +517,13 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                         elif covtypes[k] == 'normal':
                             estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
-                            if sim_trunc:
-                                prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
-                                prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
+                            #if sim_trunc:
+                            #    prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
+                            #    prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
+                            #new_df[cov] = prediction
+                            estimated_mean = covariate_fits[cov].predict(new_df)
+                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
+                            prediction = apply_bounds(prediction, cov, bounds, integer=False)
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'categorical':
@@ -505,8 +538,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                             estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             prediction = prediction.apply(lambda x: x * (bounds[cov][1] - bounds[cov][0]) + bounds[cov][0])
-                            prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
-                            prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
+                            #prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
+                            #prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
+                            prediction = apply_bounds(prediction, cov, bounds, integer=False)
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'zero-inflated normal':
@@ -519,6 +553,13 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                             prediction = np.where((prediction < bounds[cov][0]) & (indicator == 1), bounds[cov][0], prediction)
                             prediction = np.where((prediction > bounds[cov][1]) & (indicator == 1), bounds[cov][1], prediction)
                             new_df[cov] = prediction
+
+                            # Only clip positive simulated values; preserve zeros exactly
+                            #if cov in bounds:
+                            #    lower, upper = bounds[cov]
+                            #    prediction = np.where((prediction < lower) & (indicator == 1), lower, prediction)
+                            #    prediction = np.where((prediction > upper) & (indicator == 1), upper, prediction)
+                            #new_df[cov] = prediction
 
                         elif covtypes[k] == 'truncated normal':
                             fit_coefficients = covariate_fits[cov]
@@ -534,8 +575,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                             prediction = pd.Series(estimated_mean).apply(truc_sample, rmse=rmses[cov], a=trunc_bounds[0],
                                                                      b=trunc_bounds[1])
-                            prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
-                            prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
+                            prediction = apply_bounds(prediction, cov, bounds, integer=False)
+                            #prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
+                            #prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'absorbing':
@@ -547,13 +589,16 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                         elif covtypes[k] == 'poisson':
                             estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(poisson_sample, simul_rng=simul_rng)
-                            prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
-                            prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
+                            prediction = apply_bounds(prediction, cov, bounds, integer=True)
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'custom':
                             pred_func = covpredict_custom[k]
                             prediction = pred_func(covmodel=covmodels[k], new_df=new_df, fit=covariate_fits[cov])
+                            # Apply bounds if this custom covariate has stored bounds
+                            if cov in bounds:
+                                is_integer = pd.api.types.is_integer_dtype(obs_data[cov].dropna())
+                                prediction = apply_bounds(prediction, cov, bounds, integer=is_integer)
                             new_df[cov] = prediction
 
                         if visit_covs and cov in visit_covs: ### assign visited covariate the model output value or its lagged value based on visit indicator

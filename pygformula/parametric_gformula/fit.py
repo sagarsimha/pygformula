@@ -141,6 +141,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
 
             if covtypes[k] == 'binary':
                 #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
+                bounds[cov] = [0, 1]
                 fit = smf.glm(covmodels[k], data=fit_data, family=sm.families.Binomial()).fit()
                 rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
                 covariate_fits[cov] = fit
@@ -248,6 +249,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_vcovs[cov] = fit_results['vcov']
 
             elif covtypes[k] == 'absorbing':
+                bounds[cov] = [0, 1]
                 fit_data = fit_data[fit_data[time_name] > 0]
                 absorb_fit_data = fit_data[fit_data['lag1_{0}'.format(cov)] == 0]
                 cov_fit = smf.glm(covmodels[k], absorb_fit_data, family=sm.families.Binomial()).fit()
@@ -267,25 +269,27 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                 bounds[cov] = [min_cov, max_cov]
 
                 # Fit Poisson GLM with canonical log link
-                fit = smf.glm(
+                cov_fit = smf.glm(
                     covmodels[k],
                     data=fit_data,
                     family=sm.families.Poisson()
                 ).fit()
 
                 # RMSE on the mean prediction scale
-                rmse = np.sqrt(np.mean((fit.predict() - fit_data[cov]) ** 2))
+                rmse = np.sqrt(np.mean((cov_fit.predict() - fit_data[cov]) ** 2))
 
-                covariate_fits[cov] = fit
+                covariate_fits[cov] = cov_fit
                 rmses[cov] = rmse
 
                 if return_fits:
-                    model_coeffs[cov] = fit.params
-                    model_stderrs[cov] = fit.bse
-                    model_vcovs[cov] = fit.cov_params()
-                    model_fits_summary[cov] = fit.summary()
+                    model_coeffs[cov] = cov_fit.params
+                    model_stderrs[cov] = cov_fit.bse
+                    model_vcovs[cov] = cov_fit.cov_params()
+                    model_fits_summary[cov] = cov_fit.summary()
 
             elif covtypes[k] == 'custom':
+                if np.issubdtype(fit_data[cov].dtype, np.number):
+                    bounds[cov] = [fit_data[cov].min(), fit_data[cov].max()]
                 fit_func = covfits_custom[k]
                 cov_fit = fit_func(covmodel=covmodels[k], covname=covnames[k], fit_data=fit_data)
                 covariate_fits[cov] = cov_fit
