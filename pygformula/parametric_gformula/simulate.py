@@ -64,7 +64,7 @@ def simulate_postdischarge_constant_hazard(
     *,
     id_col: str = "admission_id",
     tD_col: str = "tD",     # "t0" is the discharge index tD since the row at discharge is fed.
-    t_max: int = 180,
+    t_max: int = 60,
     seed: int = 2026,
     return_t_death: bool = False,
 ) -> pd.DataFrame:

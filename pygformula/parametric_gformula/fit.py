@@ -669,7 +669,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
     sub_data = obs_data[obs_data[time_name] >= 0]
 
-    z_covs = [
+    '''z_covs = [
         "vent_mode__last__last_12h",
         "cumavg_vent_mode__hours_since_last__last_12h",
         "cumavg_pco2_arterial__mean__last_12h",
@@ -688,7 +688,27 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
         "cumavg_bicarbonate_arterial__last__last_12h"
-    ]
+    ]'''
+
+    zcovs = [
+        "vent_mode__last__last_12h",
+        "vent_mode__hours_since_last__last_12h",
+        "fio2__last__last_12h",
+        "po2_arterial__mean__last_12h",
+        "pco2_arterial__mean__last_12h",
+        "o2_saturation__mean__last_12h",
+        "respiratory_rate_measured__mean__last_12h",
+        "glasgow_coma_scale_total__last__last_12h",
+        "lactate__last__last_12h",
+        "arterial_blood_pressure_mean__mean__last_12h",
+        "heart_rate__mean__last_12h",
+        "creatinine__last__last_12h",
+        "ureum__last__last_12h",
+        "temperature__mean__last_12h",
+        "bicarbonate_arterial__last__last_12h",
+        "lag1_lactate__last__last_12h",
+        "lag1_creatinine__last__last_12h"
+        ]
 
     # Reweigh rows
     fit_data_Z = build_postdischarge_weighted_rows(
@@ -697,7 +717,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         t_col="t0",
         ref_time_col="ref_time",
         A_col="A",
-        t_max=180,
+        t_max=60,  # 30 days in 12h grids -> t_max=59
         z_covs=z_covs,
         death_abs_col="death_abs_time",
         death_td_col="death_time_from_intime",
@@ -757,7 +777,7 @@ def build_postdischarge_weighted_rows(
     t_col: str = "t0",
     ref_time_col: str = "ref_time",
     A_col: str = "A",                 # <-- set to your actual A column name
-    t_max: int = 180,                 # 0..179 grid (12h bins), 180 bins total
+    t_max: int = 60,                 # 0..59 grid (12h bins), 60 bins total
     z_covs=None,
     death_abs_col: str = "death_abs_time",            # datetime64[ns] or None
     death_td_col: str = "death_time_from_intime",     # timedelta64[ns] or None
