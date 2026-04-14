@@ -690,7 +690,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_bicarbonate_arterial__last__last_12h"
     ]'''
 
-    zcovs = [
+    z_covs = [
         "vent_mode__last__last_12h",
         "vent_mode__hours_since_last__last_12h",
         "fio2__last__last_12h",
