@@ -63,7 +63,7 @@ CATEGORY_MAP = {
         '21_30', '31_40', '41_50', '51_60', '61_80', '81_100'
     ],
     'glasgow_coma_scale_total__last__last_12h': [
-        'severe', 'moderate', 'mild_impaired', 'normal'
+        'mild_impaired', 'moderate', 'normal', 'severe'
     ]
 }
 
