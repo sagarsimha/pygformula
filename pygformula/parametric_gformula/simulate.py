@@ -55,6 +55,20 @@ def apply_bounds(prediction, cov, bounds, integer=False):
 
     return prediction
 
+VENT_LEVELS = ['cancelled', 'invasive_assisted', 'invasive_controlled', 'unknown']
+
+def enforce_vent_categories(df: pd.DataFrame) -> pd.DataFrame:
+    vent_like_cols = [
+        'vent_mode__last__last_12h',
+        'lag1_vent_mode__last__last_12h',
+        'lag2_vent_mode__last__last_12h',
+        'lag3_vent_mode__last__last_12h',
+    ]
+    for col in vent_like_cols:
+        if col in df.columns:
+            df[col] = pd.Categorical(df[col], categories=VENT_LEVELS)
+    return df
+
 def simulate_postdischarge_constant_hazard(
     pool_with_A1_t_t: pd.DataFrame,
     zmodel,
@@ -80,6 +94,7 @@ def simulate_postdischarge_constant_hazard(
     """
 
     df = pool_with_A1_t_t.copy()
+    df = enforce_vent_categories(df)
 
     if df.shape[0] == 0:
         return pd.DataFrame(index=df.index, columns=[id_col, "tD", "death_by_K"])
@@ -341,6 +356,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
         if t == 0:
             pool = pool[pool[time_name] <= t].copy() # pool all data until t=0
             new_df = pool[pool[time_name] == t] # pick only t=0
+            new_df = enforce_vent_categories(new_df)
 
             # Intervening happens here. new_df is updated within the function.
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t) # does intervention and new_df is updated within
@@ -356,6 +372,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
             new_df = pool[pool[time_name] == t].copy()
+            new_df = enforce_vent_categories(new_df)
 
             '''if competing and not compevent_cens:
                 prob_D = compevent_fit.predict(new_df)
@@ -498,6 +515,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
                 new_df = pool[pool[time_name] == t].copy()
+                new_df = enforce_vent_categories(new_df)
 
                 for k, cov in enumerate(covnames):
                     if covmodels[k] != 'NA':
@@ -629,6 +647,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                     if custom_histvars is not None and cov in custom_histvars:
                         update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
                     new_df = pool[pool[time_name] == t].copy()
+                    new_df = enforce_vent_categories(new_df)
 
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t)
 
@@ -644,6 +663,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
             new_df = pool[pool[time_name] == t].copy()
+            new_df = enforce_vent_categories(new_df)
 
             '''if competing and not compevent_cens:
                 params_D = re.split('[~|\+]', compevent_model.replace(' ', ''))

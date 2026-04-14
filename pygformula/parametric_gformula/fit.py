@@ -590,7 +590,7 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     fit_data = obs_data[obs_data[time_name] >= 0]
 
     fit_data = fit_data[fit_data[I_name].notna()]
-    fit_data.to_parquet("fit_data_I.parquet")
+    #fit_data.to_parquet("fit_data_I.parquet")
     I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
     if return_fits:
         model_coeffs[I_name] = I_fit.params
@@ -724,7 +724,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    fit_data_Z.to_parquet("fit_data_Z.parquet")
+    #fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
