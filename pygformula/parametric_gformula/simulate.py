@@ -55,35 +55,6 @@ def apply_bounds(prediction, cov, bounds, integer=False):
 
     return prediction
 
-CATEGORY_MAP = {
-    'vent_mode__last__last_12h': [
-        'cancelled', 'invasive_assisted', 'invasive_controlled', 'unknown'
-    ],
-    'fio2__last__last_12h': [
-        '21_30', '31_40', '41_50', '51_60', '61_80', '81_100'
-    ],
-    'glasgow_coma_scale_total__last__last_12h': [
-        'mild_impaired', 'moderate', 'normal', 'severe'
-    ]
-}
-
-def enforce_categories_for_prediction(df, max_lag=3):
-    df = df.copy()
-
-    for base_col, categories in CATEGORY_MAP.items():
-
-        # current column
-        if base_col in df.columns:
-            df[base_col] = pd.Categorical(df[base_col], categories=categories)
-
-        # lagged columns
-        for l in range(1, max_lag + 1):
-            lag_col = f"lag{l}_{base_col}"
-            if lag_col in df.columns:
-                df[lag_col] = pd.Categorical(df[lag_col], categories=categories)
-
-    return df
-
 def simulate_postdischarge_constant_hazard(
     pool_with_A1_t_t: pd.DataFrame,
     zmodel,
@@ -109,7 +80,6 @@ def simulate_postdischarge_constant_hazard(
     """
 
     df = pool_with_A1_t_t.copy()
-    pred_df = enforce_categories_for_prediction(df.copy())
 
     if df.shape[0] == 0:
         return pd.DataFrame(index=df.index, columns=[id_col, "tD", "death_by_K"])
@@ -134,8 +104,7 @@ def simulate_postdischarge_constant_hazard(
         #print("Number is", n)
     else:
         # statsmodels will use the formula design-info inside z_outcome_fit
-        #p = z_outcome_fit.predict(df).astype(float)
-        p = z_outcome_fit.predict(pred_df).astype(float)
+        p = z_outcome_fit.predict(df).astype(float)
 
     # Numerical safety
     p = p.astype(float).to_numpy()
@@ -372,7 +341,6 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
         if t == 0:
             pool = pool[pool[time_name] <= t].copy() # pool all data until t=0
             new_df = pool[pool[time_name] == t] # pick only t=0
-            
 
             # Intervening happens here. new_df is updated within the function.
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t) # does intervention and new_df is updated within
@@ -388,7 +356,6 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
             new_df = pool[pool[time_name] == t].copy()
-            
 
             '''if competing and not compevent_cens:
                 prob_D = compevent_fit.predict(new_df)
@@ -495,10 +462,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A0_t0_t = pool_with_A0_t0[pool_with_A0_t0[time_name] == t].copy() # Redundant for t0 since only 1 time point.
 
                 # Compute P(in-icu mortality).
-                #pre_i = I_fit.predict(pool_with_A0_t0_t)
-                pred_df = enforce_categories_for_prediction(pool_with_A0_t0_t.copy())
-                pre_i = I_fit.predict(pred_df)
-
+                pre_i = I_fit.predict(pool_with_A0_t0_t)
                 pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
 
                 I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
@@ -534,16 +498,11 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
                 new_df = pool[pool[time_name] == t].copy()
-                
 
                 for k, cov in enumerate(covnames):
                     if covmodels[k] != 'NA':
                         if visit_names and cov in visit_names: ### assign values for visit indicator
-                            
-                            #estimated_mean = covariate_fits[cov].predict(new_df)
-                            pred_df = enforce_categories_for_prediction(new_df.copy())
-                            estimated_mean = covariate_fits[cov].predict(pred_df)
-
+                            estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(binorm_sample, simul_rng=simul_rng)
                             max_visit = max_visits[visit_names.index(cov)]
                             ts_visit_name = ts_visit_names[visit_names.index(cov)]
@@ -551,32 +510,24 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                             new_df[ts_visit_name] = np.where(new_df[cov] == 0, new_df[ts_visit_name] + 1, 0)
 
                         elif covtypes[k] == 'binary':
-                            #estimated_mean = covariate_fits[cov].predict(new_df)
-                            pred_df = enforce_categories_for_prediction(new_df.copy())
-                            estimated_mean = covariate_fits[cov].predict(pred_df)
-                            
+                            estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(binorm_sample, simul_rng=simul_rng) # N values are generated
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'normal':
+                            estimated_mean = covariate_fits[cov].predict(new_df)
+                            prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             #if sim_trunc:
                             #    prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
                             #    prediction = np.where(prediction > bounds[cov][1], bounds[cov][1], prediction)
                             #new_df[cov] = prediction
-                            
-                            #estimated_mean = covariate_fits[cov].predict(new_df)
-                            pred_df = enforce_categories_for_prediction(new_df.copy())
-                            estimated_mean = covariate_fits[cov].predict(pred_df)
-
+                            estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             prediction = apply_bounds(prediction, cov, bounds, integer=False)
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'categorical':
-                            #predict_probs = covariate_fits[cov].predict(new_df)
-                            pred_df = enforce_categories_for_prediction(new_df.copy())
-                            predict_probs = covariate_fits[cov].predict(pred_df)
-
+                            predict_probs = covariate_fits[cov].predict(new_df)
                             predict_probs = np.asarray(predict_probs)
                             categories = pd.Categorical(obs_data[cov]).categories
                             predict_index = [simul_rng.choice(len(probs), p=probs) for probs in predict_probs]
@@ -584,10 +535,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'bounded normal':
-                            #estimated_mean = covariate_fits[cov].predict(new_df)
-                            pred_df = enforce_categories_for_prediction(new_df.copy())
-                            estimated_mean = covariate_fits[cov].predict(pred_df)
-
+                            estimated_mean = covariate_fits[cov].predict(new_df)
                             prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             prediction = prediction.apply(lambda x: x * (bounds[cov][1] - bounds[cov][0]) + bounds[cov][0])
                             #prediction = np.where(prediction < bounds[cov][0], bounds[cov][0], prediction)
@@ -596,18 +544,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                             new_df[cov] = prediction
 
                         elif covtypes[k] == 'zero-inflated normal':
-                            #estimated_indicator_mean = covariate_fits[cov][0].predict(new_df)
-                            
-                            pred_df = enforce_categories_for_prediction(new_df.copy())
-                            estimated_indicator_mean = covariate_fits[cov][0].predict(pred_df)
-
-
+                            estimated_indicator_mean = covariate_fits[cov][0].predict(new_df)
                             indicator = estimated_indicator_mean.apply(binorm_sample, simul_rng=simul_rng)
-                            
-                            #estimated_mean = covariate_fits[cov][1].predict(new_df)
-                            estimated_mean = covariate_fits[cov][1].predict(pred_df)
-                            
-                            
+                            estimated_mean = covariate_fits[cov][1].predict(new_df)
                             prediction = estimated_mean.apply(norm_sample, rmse=rmses[cov], simul_rng=simul_rng)
                             nonzero_predict = prediction.apply(lambda x: math.exp(x))
                             prediction = indicator * nonzero_predict
@@ -690,7 +629,6 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                     if custom_histvars is not None and cov in custom_histvars:
                         update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
                     new_df = pool[pool[time_name] == t].copy()
-                    
 
             intervention_func(new_df=new_df, pool=pool, intervention=intervention, time_name=time_name, t=t)
 
@@ -706,7 +644,6 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if custom_histvars is not None:
                     update_custom_history(pool, custom_histvars, custom_histories, time_name, t, id)
             new_df = pool[pool[time_name] == t].copy()
-            
 
             '''if competing and not compevent_cens:
                 params_D = re.split('[~|\+]', compevent_model.replace(' ', ''))
@@ -827,10 +764,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A0_t_t = pool_with_A0_t[pool_with_A0_t[time_name] == t].copy() # Pick current time point where A=0.
 
                 # Compute P(in-icu mortality).
-                #pre_i = I_fit.predict(pool_with_A0_t_t)
-                pred_df = enforce_categories_for_prediction(pool_with_A0_t_t.copy())
-                pre_i = I_fit.predict(pred_df)
-                
+                pre_i = I_fit.predict(pool_with_A0_t_t)
                 pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
 
                 I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)

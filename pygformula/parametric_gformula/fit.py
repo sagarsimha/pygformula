@@ -7,39 +7,6 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from pytruncreg import truncreg
 
-CATEGORY_MAP = {
-    'vent_mode__last__last_12h': [
-        'cancelled', 'invasive_assisted', 'invasive_controlled', 'unknown'
-    ],
-    'fio2__last__last_12h': [
-        '21_30', '31_40', '41_50', '51_60', '61_80', '81_100'
-    ],
-    'glasgow_coma_scale_total__last__last_12h': [
-        'mild_impaired', 'moderate', 'normal', 'severe'
-    ]
-}
-
-def enforce_categories_for_fit(df: pd.DataFrame, max_lag: int = 3) -> pd.DataFrame:
-    """
-    Enforce a single categorical dtype and category order for known categorical
-    covariates and any lagged versions that already exist in the dataframe.
-
-    Important:
-    - This does NOT create lag columns.
-    - It only standardizes dtype/category order for columns already present.
-    """
-    df = df.copy()
-
-    for base_col, categories in CATEGORY_MAP.items():
-        if base_col in df.columns:
-            df[base_col] = pd.Categorical(df[base_col], categories=categories, ordered=True)
-
-        for l in range(1, max_lag + 1):
-            lag_col = f"lag{l}_{base_col}"
-            if lag_col in df.columns:
-                df[lag_col] = pd.Categorical(df[lag_col], categories=categories, ordered=True)
-
-    return df
 
 def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name, obs_data, return_fits,
                         trunc_params=None, visit_names=None, max_visits=None, ts_visit_names=None, visit_covs=None,
@@ -137,10 +104,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
     model_vcovs = {}
     model_fits_summary = {}
 
-    #sub_data = obs_data[obs_data[time_name] > 0]
-
-    sub_data = obs_data[obs_data[time_name] > 0].copy()
-    sub_data = enforce_categories_for_fit(sub_data, max_lag=3)
+    sub_data = obs_data[obs_data[time_name] > 0]
 
     for k, cov in enumerate(covnames):
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$', cov)
@@ -210,8 +174,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
 
             elif covtypes[k] == 'categorical':
                 #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
-                #fit_data[cov] = pd.Categorical(fit_data[cov]).codes
-                fit_data[cov] = fit_data[cov].cat.codes
+                fit_data[cov] = pd.Categorical(fit_data[cov]).codes
                 fit = smf.mnlogit(covmodels[k], data=fit_data).fit()
                 covariate_fits[cov] = fit
                 if return_fits:
@@ -624,12 +587,10 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     model_vcovs = {}
     model_fits_summary = {}
 
-    #fit_data = obs_data[obs_data[time_name] >= 0]
-    fit_data = obs_data[obs_data[time_name] >= 0].copy()
-    fit_data = enforce_categories_for_fit(fit_data, max_lag=3)
+    fit_data = obs_data[obs_data[time_name] >= 0]
 
     fit_data = fit_data[fit_data[I_name].notna()]
-    #fit_data.to_parquet("fit_data_I.parquet")
+    fit_data.to_parquet("fit_data_I.parquet")
     I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
     if return_fits:
         model_coeffs[I_name] = I_fit.params
@@ -706,11 +667,9 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     model_vcovs = {}
     model_fits_summary = {}
 
-    #sub_data = obs_data[obs_data[time_name] >= 0]
-    sub_data = obs_data[obs_data[time_name] >= 0].copy()
-    sub_data = enforce_categories_for_fit(sub_data, max_lag=3)
+    sub_data = obs_data[obs_data[time_name] >= 0]
 
-    '''z_covs = [
+    z_covs = [
         "vent_mode__last__last_12h",
         "cumavg_vent_mode__hours_since_last__last_12h",
         "cumavg_pco2_arterial__mean__last_12h",
@@ -729,27 +688,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         "cumavg_temperature__mean__last_12h",
         "cumavg_activated_partial_thromboplastin_time__last__last_12h",
         "cumavg_bicarbonate_arterial__last__last_12h"
-    ]'''
-
-    z_covs = [
-        "vent_mode__last__last_12h",
-        "vent_mode__hours_since_last__last_12h",
-        "fio2__last__last_12h",
-        "po2_arterial__mean__last_12h",
-        "pco2_arterial__mean__last_12h",
-        "o2_saturation__mean__last_12h",
-        "respiratory_rate_measured__mean__last_12h",
-        "glasgow_coma_scale_total__last__last_12h",
-        "lactate__last__last_12h",
-        "arterial_blood_pressure_mean__mean__last_12h",
-        "heart_rate__mean__last_12h",
-        "creatinine__last__last_12h",
-        "ureum__last__last_12h",
-        "temperature__mean__last_12h",
-        "bicarbonate_arterial__last__last_12h",
-        "lag1_lactate__last__last_12h",
-        "lag1_creatinine__last__last_12h"
-        ]
+    ]
 
     # Reweigh rows
     fit_data_Z = build_postdischarge_weighted_rows(
@@ -765,7 +704,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    #fit_data_Z.to_parquet("fit_data_Z.parquet")
+    fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
