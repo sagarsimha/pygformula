@@ -618,7 +618,25 @@ class ParametricGformula:
         else:
             censor_fit = None
 
-        # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
+        
+        # ---- NEW: persist fitted state for later simulation ----
+        self.covariate_fits_ = covariate_fits
+        self.bounds_ = bounds
+        self.rmses_ = rmses
+        self.I_fit_ = I_fit
+        self.z_outcome_fit_ = z_outcome_fit
+        self.compevent_fit_ = compevent_fit
+        self.censor_fit_ = censor_fit
+
+        self.model_coeffs_ = model_coeffs
+        self.model_stderrs_ = model_stderrs
+        self.model_vcovs_ = model_vcovs
+        self.model_fits_summary_ = model_fits_summary
+        self.all_model_fits_ = all_model_fits
+
+        return self
+
+        '''# The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
         # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.
         if self.n_simul != len(np.unique(self.obs_data[self.id])):
             data_list = dict(list(self.obs_data.groupby(self.id, group_keys=False)))
@@ -631,9 +649,25 @@ class ParametricGformula:
                 new_df.append(new_id_df)
             data = pd.concat(new_df, ignore_index=True)
         else:
-            data = self.obs_data
+            data = self.obs_data'''
 
-    def simulate(self):
+    
+    def simulate(self, data):
+
+        required = ['covariate_fits_', 'bounds_', 'rmses_', 'I_fit_', 'z_outcome_fit_']
+        missing = [x for x in required if not hasattr(self, x)]
+        if missing:
+            raise RuntimeError(f"Call fit() before simulate(). Missing: {missing}")
+
+
+        covariate_fits = self.covariate_fits_
+        bounds = self.bounds_
+        rmses = self.rmses_
+        I_fit = self.I_fit_
+        z_outcome_fit = self.z_outcome_fit_
+        compevent_fit = self.compevent_fit_
+        censor_fit = self.censor_fit_
+
         print('start simulating.')
         if self.parallel:
             self.all_simulate_results = (
@@ -743,7 +777,9 @@ class ParametricGformula:
 
         # compute non-parametric and parametric covariates means and risks
         self.obs_means, self.est_means, self.obs_res, self.IP_weights, obs_data_debug = comparison_calculate(
-            obs_data=self.obs_data[self.obs_data[self.time_name] >= 0], time_name=self.time_name,
+            #obs_data=self.obs_data[self.obs_data[self.time_name] >= 0], 
+            obs_data=data[data[self.time_name] >= 0], 
+            time_name=self.time_name,
             time_points=self.time_points, id=self.id, covnames=self.covnames, covtypes=self.covtypes,
             
             # The outcome models are all based on Z (post-discharge), but the final outcome is Y (all-cause mortality), 
@@ -913,12 +949,12 @@ class ParametricGformula:
             'gformula_results': res_table,
             'sim_data': self.pool_dict,
             'IP_weights': self.IP_weights,
-            'model_fits_summary': model_fits_summary,
-            'model_coeffs': model_coeffs,
-            'model_stderrs': model_stderrs,
-            'model_vcovs': model_vcovs,
-            'rmses': rmses,
-            'bounds': bounds,
+            'model_fits_summary': self.model_fits_summary_,
+            'model_coeffs': self.model_coeffs_,
+            'model_stderrs': self.model_stderrs_,
+            'model_vcovs': self.model_vcovs_,
+            'rmses': self.rmses_,
+            'bounds': self.bounds_,
             'hazard_ratio': '{:.5f}'.format(self.hazard_ratio) if self.hazardratio else 'NA',
             'obs_plot': self.obs_means,
             'est_plot': self.est_means,
@@ -926,12 +962,14 @@ class ParametricGformula:
             'bootcoeffs': self.bootcoeffs,
             'bootstderrs': self.bootstderrs,
             'bootvcovs': self.bootvcovs,
-            'all_model_fits': all_model_fits,
+            'all_model_fits': self.all_model_fits_,
             'obs_data_debug' : obs_data_debug
         }
 
         if self.save_results:
             save_results(self.summary_dict, self.save_path)
+        
+        return self
 
     def plot_natural_course(self, plot_name='all', colors=None, marker='o', markersize=4, linewidth=0.5,
                             save_figure=False):
