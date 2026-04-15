@@ -633,6 +633,7 @@ class ParametricGformula:
         else:
             data = self.obs_data
 
+    def simulate(self):
         print('start simulating.')
         if self.parallel:
             self.all_simulate_results = (
