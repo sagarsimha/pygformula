@@ -531,7 +531,7 @@ class ParametricGformula:
         #self.obs_data.to_csv('pooled.csv', index=False)
         #print('$$$$$$$$$$$$$')
 
-    def fit(self):
+    def fit(self, run_simulation=True):
 
         print('start fitting parametric model.')
         #print('check...')
@@ -617,6 +617,57 @@ class ParametricGformula:
             model_fits_summary.update(censor_model_fits_summary)
         else:
             censor_fit = None
+
+        # ------------------------------------------------------------------
+        # FIT-ONLY MODE:
+        # return fitted objects and diagnostics without running simulation
+        # ------------------------------------------------------------------
+        if not run_simulation:
+            self.all_simulate_results = None
+            self.g_results = None
+            self.natural_course_risk = None
+            self.pools = None
+            self.pool_dict = None
+            self.natural_course_pool = None
+
+            self.obs_means = None
+            self.est_means = None
+            self.obs_res = None
+            self.IP_weights = None
+            obs_data_debug = None
+
+            self.hazard_ratio = None
+            self.boot_table = None
+            self.bootests = None
+            self.bootcoeffs = None
+            self.bootstderrs = None
+            self.bootvcovs = None
+
+            self.summary_dict = {
+                'gformula_results': None,
+                'sim_data': None,
+                'IP_weights': None,
+                'model_fits_summary': model_fits_summary,
+                'model_coeffs': model_coeffs,
+                'model_stderrs': model_stderrs,
+                'model_vcovs': model_vcovs,
+                'rmses': rmses,
+                'bounds': bounds,
+                'hazard_ratio': 'NA',
+                'obs_plot': None,
+                'est_plot': None,
+                'bootests': None,
+                'bootcoeffs': None,
+                'bootstderrs': None,
+                'bootvcovs': None,
+                'all_model_fits': all_model_fits,
+                'obs_data_debug': None
+            }
+
+            if self.save_results:
+                save_results(self.summary_dict, self.save_path)
+
+            return
 
         # The initial population in 'L0' to simulate from has the distribution of the obs_data. If short stayers
         # are more in the obs_data, they will be picked more often, and also with replace = True, much more likely.
