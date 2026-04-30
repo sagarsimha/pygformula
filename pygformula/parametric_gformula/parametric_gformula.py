@@ -282,6 +282,8 @@ class ParametricGformula:
                  save_results=False,
                  I_model=None,
                  I_name=None,
+                 I_model_fit_custom=None,
+                 I_model_predict_custom=None,
                  **interventions
                  ):
 
@@ -336,6 +338,8 @@ class ParametricGformula:
         self.save_results = save_results
         self.I_model = I_model
         self.I_name = I_name
+        self.I_model_fit_custom = I_model_fit_custom
+        self.I_model_predict_custom = I_model_predict_custom
 
         self.set_seed()
         self.origin_obs_data = self.obs_data.copy()
@@ -562,7 +566,8 @@ class ParametricGformula:
         # Model for in-icu death (I)
         I_fit, I_model_coeffs, I_model_stderrs, I_model_vcovs, I_model_fits_summary = \
             fit_I_model(I_model=self.I_model, I_name=self.I_name,
-                                time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits)
+                                time_name=self.time_name, obs_data=self.obs_data, return_fits=self.model_fits,
+                                I_model_fit_custom=self.I_model_fit_custom)
         model_coeffs.update(I_model_coeffs)
         model_stderrs.update(I_model_stderrs)
         model_vcovs.update(I_model_vcovs)
@@ -727,7 +732,8 @@ class ParametricGformula:
                                    restrictions = self.restrictions, yrestrictions=self.yrestrictions,
                                    compevent_restrictions = self.compevent_restrictions,
                                    sim_trunc=self.sim_trunc, 
-                                   I_fit=I_fit, I_name=self.I_name)
+                                   I_fit=I_fit, I_name=self.I_name,
+                                   I_model_predict_custom=self.I_model_predict_custom)
                  for intervention_name in self.int_descript)
             )
         else:
@@ -774,6 +780,7 @@ class ParametricGformula:
                                            compevent_restrictions=self.compevent_restrictions,
                                            sim_trunc=self.sim_trunc,
                                            I_fit=I_fit, I_name=self.I_name,
+                                           I_model_predict_custom=self.I_model_predict_custom,
                                            )
 
                 self.all_simulate_results.append(simulate_result)
@@ -886,7 +893,9 @@ class ParametricGformula:
                                                  restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                                  compevent_restrictions=self.compevent_restrictions,
                                                  sim_trunc=self.sim_trunc,
-                                                 I_model=self.I_model, I_fit=I_fit, I_name=self.I_name
+                                                 I_model=self.I_model, I_fit=I_fit, I_name=self.I_name,
+                                                 I_model_fit_custom=self.I_model_fit_custom,
+                                                 I_model_predict_custom=self.I_model_predict_custom
                                         )
                      for i in tqdm(range(self.nsamples), desc='Bootstrap progress'))
                 )
@@ -922,7 +931,9 @@ class ParametricGformula:
                                                  restrictions=self.restrictions, yrestrictions=self.yrestrictions,
                                                  compevent_restrictions=self.compevent_restrictions,
                                                  sim_trunc=self.sim_trunc,
-                                                 I_model=self.I_model, I_fit=I_fit, I_name=self.I_name
+                                                 I_model=self.I_model, I_fit=I_fit, I_name=self.I_name,
+                                                 I_model_fit_custom=self.I_model_fit_custom,
+                                                 I_model_predict_custom=self.I_model_predict_custom
                                                  )
 
                     boot_results_dicts.append(boot_result_dict)

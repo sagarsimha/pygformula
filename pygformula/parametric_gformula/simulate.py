@@ -155,7 +155,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
              competing, compevent_name, compevent_model, compevent_fit, compevent_cens, trunc_params,
              visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds, baselags, below_zero_indicator,
              restrictions, yrestrictions, compevent_restrictions, covnames, covtypes, covmodels,
-             covariate_fits, cov_hist, sim_trunc, I_fit, I_name):
+             covariate_fits, cov_hist, sim_trunc, I_fit, I_name,
+             I_model_predict_custom=None):
 
     """
     This is an internal function to perform Monte Carlo simulation of the parametric g-formula.
@@ -462,7 +463,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A0_t0_t = pool_with_A0_t0[pool_with_A0_t0[time_name] == t].copy() # Redundant for t0 since only 1 time point.
 
                 # Compute P(in-icu mortality).
-                pre_i = I_fit.predict(pool_with_A0_t0_t)
+                if I_model_predict_custom is not None:
+                    pre_i = I_model_predict_custom(I_model=None, new_df=pool_with_A0_t0_t, fit=I_fit)
+                else:
+                    pre_i = I_fit.predict(pool_with_A0_t0_t)
                 pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
 
                 I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
@@ -764,7 +768,10 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool_with_A0_t_t = pool_with_A0_t[pool_with_A0_t[time_name] == t].copy() # Pick current time point where A=0.
 
                 # Compute P(in-icu mortality).
-                pre_i = I_fit.predict(pool_with_A0_t_t)
+                if I_model_predict_custom is not None:
+                    pre_i = I_model_predict_custom(I_model=None, new_df=pool_with_A0_t_t, fit=I_fit)
+                else:
+                    pre_i = I_fit.predict(pool_with_A0_t_t)
                 pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
 
                 I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)

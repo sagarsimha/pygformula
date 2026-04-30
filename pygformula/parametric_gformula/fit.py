@@ -538,7 +538,8 @@ def fit_censor_model(censor_model, censor_name, time_name, obs_data, return_fits
 
 
 # Fitting a model for in-icu death
-def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
+def fit_I_model(I_model, I_name, time_name, obs_data, return_fits,
+                I_model_fit_custom=None):
     """
     This is a function to fit parametric model for the in-icu death event.
 
@@ -559,6 +560,13 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     return_fits: Bool
         A boolean value indicating whether to get the coefficients, standard errors, variance-covariance matrices of the
         fitted censor model.
+
+    I_model_fit_custom: Callable, default is None
+        Optional user-supplied fitter that replaces the default GLM. If provided, called as
+        `I_fit = I_model_fit_custom(I_model, fit_data)` and the returned object is stored
+        verbatim in `summary_dict["all_model_fits"]`. Custom fits typically lack GLM-style
+        coefficient summaries, so model_coeffs/stderrs/vcovs are returned as None for I.
+        When None (default), the GLM Binomial fit is used, preserving backward compatibility.
 
     Returns
     -------
@@ -591,12 +599,23 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
 
     fit_data = fit_data[fit_data[I_name].notna()]
     fit_data.to_parquet("fit_data_I.parquet")
-    I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
-    if return_fits:
-        model_coeffs[I_name] = I_fit.params
-        model_stderrs[I_name] = I_fit.bse
-        model_vcovs[I_name] = I_fit.cov_params()
-        model_fits_summary[I_name] = I_fit.summary()
+
+    if I_model_fit_custom is not None:
+        I_fit = I_model_fit_custom(I_model, fit_data)
+        if return_fits:
+            # Custom fits typically lack GLM-style summaries; keep keys
+            # present so downstream `summary_dict` is consistent.
+            model_coeffs[I_name] = None
+            model_stderrs[I_name] = None
+            model_vcovs[I_name] = None
+            model_fits_summary[I_name] = I_fit
+    else:
+        I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
+        if return_fits:
+            model_coeffs[I_name] = I_fit.params
+            model_stderrs[I_name] = I_fit.bse
+            model_vcovs[I_name] = I_fit.cov_params()
+            model_fits_summary[I_name] = I_fit.summary()
 
     return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
