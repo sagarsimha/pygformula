@@ -150,7 +150,7 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_coeffs[cov] = fit.params
                     model_stderrs[cov] = fit.bse
                     model_vcovs[cov] = fit.cov_params()
-                    model_fits_summary[cov] = fit.summary()
+                    model_fits_summary[cov] = fit.summary() #added comment
 
             elif covtypes[k] == 'normal':
                 min_cov = fit_data[cov].min()
