@@ -288,7 +288,11 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_fits_summary[cov] = cov_fit.summary()
 
             elif covtypes[k] == 'custom':
-                if np.issubdtype(fit_data[cov].dtype, np.number):
+                # Use pandas-aware dtype check; np.issubdtype raises TypeError
+                # on pandas extension dtypes such as CategoricalDtype, which
+                # are valid targets for the custom covtype (e.g. when the user
+                # supplies a multinomial classifier).
+                if pd.api.types.is_numeric_dtype(fit_data[cov]):
                     bounds[cov] = [fit_data[cov].min(), fit_data[cov].max()]
                 fit_func = covfits_custom[k]
                 cov_fit = fit_func(covmodel=covmodels[k], covname=covnames[k], fit_data=fit_data)
