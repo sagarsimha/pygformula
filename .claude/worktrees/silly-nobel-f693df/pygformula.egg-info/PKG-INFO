@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: pygformula
+Version: 1.2.0
+Summary: A python implementation of the parametric g-formula
+Author-email: Jing Li <jing_li@hsph.harvard.edu>, Sophia Rein <srein@hsph.harvard.edu>, Sean McGrath <sean.mcgrath@yale.edu>, Roger Logan <rwlogan@hsph.harvard.edu>, Ryan O’Dea <ryan.odea@psi.ch>, Miguel Hernan <mhernan@hsph.harvard.edu>
+Maintainer-email: Jing Li <jing_li@hsph.harvard.edu>
+License: MIT
+Project-URL: Homepage, https://github.com/CausalInference/pygformula
+Project-URL: Repository, https://github.com/CausalInference/pygformula
+Project-URL: Documentation, https://pygformula.readthedocs.io
+Project-URL: Bug Tracker, https://github.com/CausalInference/pygformula/issues
+Keywords: causal inference,g-formula,observational studies,longitudinal data
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: joblib>=1.2
+Requires-Dist: lifelines>=0.27
+Requires-Dist: matplotlib>=3.5
+Requires-Dist: numpy>=1.22
+Requires-Dist: pandas>=1.5
+Requires-Dist: prettytable>=3.10
+Requires-Dist: pytruncreg>=0.1
+Requires-Dist: scipy>=1.10
+Requires-Dist: seaborn>=0.11
+Requires-Dist: statsmodels>=0.14
+Requires-Dist: tqdm>=4.64
+Requires-Dist: PyQt5>=5.15
+Dynamic: license-file
+
+# pygformulaICU: a python implementation of the parametric g-formula for dynamic treatment lengths typical in ICU care
+
+**Authors: Sagar Nagaraj Simha, Ameen Abu-Hanna, Giovanni Cinà**
+
+Modified original package [pygformula](https://github.com/CausalInference/pygformula/)
+
+Original Authors: Jing Li, Sophia Rein, Sean McGrath, Roger Logan, Ryan O’Dea, Miguel Hernán
+
+
+## Overview
+The pygformula package implements the non-iterative conditional expectation (NICE) estimator of the g-formula algorithm
+(Robins, 1986). The g-formula can estimate an outcome’s counterfactual mean or risk under hypothetical treatment strategies
+(interventions) when there is sufficient information on time-varying treatments and confounders. The package works with 
+treatment strategies of variable length.
+
+
+### Features
+
+* Treatments: discrete or continuous time-varying treatments.
+* Outcomes: failure time outcomes or continuous/binary end of follow-up outcomes.
+* Interventions: interventions on a single treatment or joint interventions on multiple treatments.
+* Random measurement/visit process.
+* Incorporation of a priori knowledge of the data structure.
+* Censoring events.
+* Competing events.
+* Variable treatment length
+
+
+## Requirements
+
+The package requires python 3.8+ and these necessary dependencies:
+
+- cmprsk
+- joblib
+- lifelines
+- matplotlib
+- numpy
+- pandas
+- prettytable
+- pytruncreg
+- scipy
+- seaborn
+- statsmodels
+- tqdm
+
+
+## Documentation
+
+The online documentation is available at [pygformula documentation](https://pygformula.readthedocs.io).
+
+## Contact
+
+For any questions or comments, please email s.n.simha@amsterdamumc.nl.
