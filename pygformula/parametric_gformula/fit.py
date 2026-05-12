@@ -121,9 +121,6 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
             else:
                 fit_data = sub_data.copy()
 
-            # Restrict to survive ICU and proceed to discharge (D=0). These are also the crowd who have A=0 and A=1.
-            # fit_data = fit_data[fit_data["D"] == 0] # Survivors
-
             if restrictions is not None:
                restrictcovs = [restrictions[0] for i in range(len(restrictions))]
                if cov in restrictcovs:
@@ -133,11 +130,26 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                        mask = fit_data[cond_var].apply(condition)
                        fit_data = fit_data[mask]
 
-            # exclude rows that contains NA values of the predictors in fit_data
-            predictors = covmodels[k].split('~')[1].strip().split(' + ')
-            all_vars = predictors + [cov]
-            all_vars = [item[2:-1] if item.startswith('C(') and item.endswith(')') else item for item in all_vars]
-            fit_data = fit_data[all_vars].dropna()
+            # PATCH: LightGBM (custom covtype) handles NaN natively and learns from
+            # the missingness pattern. The original formula-wide dropna eliminates
+            # rows with NaN in ANY predictor, which for a 22-predictor formula on
+            # MIMIC-IV ICU data leaves <0.1% of rows — a small, severely biased
+            # subset of the most heavily-monitored (sickest) patients. This biased
+            # the A-model into "low discharge probability after t=0" and caused
+            # the per-t A-hazard collapse seen in the natural-course diagnostics.
+            #
+            # For GLM-family covtypes (which statsmodels cannot fit with NaN
+            # predictors), keep the original behaviour. For custom covtypes, drop
+            # only rows with NaN in the *outcome* — predictor NaN is fine because
+            # LightGBM handles it natively as a learnable signal.
+            if covtypes[k] == 'custom':
+                fit_data = fit_data.dropna(subset=[cov])
+            else:
+                # exclude rows that contains NA values of the predictors in fit_data
+                predictors = covmodels[k].split('~')[1].strip().split(' + ')
+                all_vars = predictors + [cov]
+                all_vars = [item[2:-1] if item.startswith('C(') and item.endswith(')') else item for item in all_vars]
+                fit_data = fit_data[all_vars].dropna()
 
             if covtypes[k] == 'binary':
                 #fit_data.to_parquet("fit_data_{0}.parquet".format(cov))
@@ -591,7 +603,7 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits,
 
     fit_data = obs_data[obs_data[time_name] >= 0]
     fit_data = fit_data[fit_data[I_name].notna()]
-    fit_data.to_parquet("fit_data_I.parquet")
+    #fit_data.to_parquet("fit_data_I.parquet")
 
     if I_model_fit_custom is not None:
         # Custom path (e.g., LightGBM). The user is responsible for the
@@ -726,7 +738,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    fit_data_Z.to_parquet("fit_data_Z.parquet")
+    #fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
