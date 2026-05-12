@@ -496,10 +496,27 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 # `pool_with_I1_t0` from it. Without this, the bin-level
                 # I_event_t lives only on the local `pool_with_A0_t0_t` copy
                 # and is lost when that DataFrame goes out of scope.
-                # `.values` strips the Series index to make the assignment
-                # purely positional, avoiding any chance of misalignment.
-                pool.loc[pool_with_A0_t0_t.index, 'I_event_t'] = I_t0.values
-                pool.loc[pool_with_A0_t0_t.index, 'I_hat']     = I_t0.values
+                #
+                # We cannot use `pool.loc[pool_with_A0_t0_t.index, ...]` because
+                # `pool`'s integer index can have duplicate labels after the
+                # `pd.concat(pool, new_df)` operations earlier in the simulator
+                # do not pass `ignore_index=True`. Duplicate-label `.loc`
+                # selection expands the LHS to more rows than the RHS and pandas
+                # raises "Must have equal len keys and value".
+                # Instead, write back via a stay-id-keyed map combined with a
+                # boolean mask on (id, time_name) — both are unambiguous and
+                # robust to index duplication.
+                _id_to_I_t0 = pd.Series(
+                    I_t0.values,
+                    index=pool_with_A0_t0_t[id].values,
+                )
+                _mask_t0 = (pool[time_name] == t) & (pool[id].isin(ids_with_A0_t0))
+                assert _mask_t0.sum() == len(I_t0), (
+                    f"t=0 I-write-back mask size {_mask_t0.sum()} != len(I_t0) {len(I_t0)}"
+                )
+                _mapped_t0 = pool.loc[_mask_t0, id].map(_id_to_I_t0).values
+                pool.loc[_mask_t0, 'I_event_t'] = _mapped_t0
+                pool.loc[_mask_t0, 'I_hat']     = _mapped_t0
 
                 # Keep the local copy in sync for the immediate ids_with_I1_t0 lookup.
                 pool_with_A0_t0_t['I_event_t'] = I_t0  # bin-level event indicator
@@ -818,9 +835,19 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
 
                 # Persist the bin-level event into `pool` BEFORE slicing
                 # `pool_with_I1_t` from it. See t=0 block for the same fix
-                # and rationale.
-                pool.loc[pool_with_A0_t_t.index, 'I_event_t'] = I_t.values
-                pool.loc[pool_with_A0_t_t.index, 'I_hat']     = I_t.values
+                # and rationale (pool's integer index has duplicate labels due
+                # to earlier `pd.concat` without `ignore_index=True`).
+                _id_to_I_t = pd.Series(
+                    I_t.values,
+                    index=pool_with_A0_t_t[id].values,
+                )
+                _mask_t = (pool[time_name] == t) & (pool[id].isin(ids_with_A0_t))
+                assert _mask_t.sum() == len(I_t), (
+                    f"t={t} I-write-back mask size {_mask_t.sum()} != len(I_t) {len(I_t)}"
+                )
+                _mapped_t = pool.loc[_mask_t, id].map(_id_to_I_t).values
+                pool.loc[_mask_t, 'I_event_t'] = _mapped_t
+                pool.loc[_mask_t, 'I_hat']     = _mapped_t
 
                 # Keep the local copy in sync for the immediate ids_with_I1_t lookup.
                 pool_with_A0_t_t['I_event_t'] = I_t  # bin-level event indicator
