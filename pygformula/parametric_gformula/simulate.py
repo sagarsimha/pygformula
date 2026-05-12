@@ -806,8 +806,21 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
     last_idx = pool.sort_values([id, time_name]).groupby(id, sort=False).tail(1).index
     pool.loc[last_idx, "Y_hat"] = 0
 
-    # Concatenate all
+    # Concatenate all final frames.
+    # Note: each frame in `final_df_list` may have different presence/NaN-ness
+    # for I_hat / Z_hat / Y_hat (discharged stays have Z_hat populated, in-ICU
+    # death stays have I_hat=1, residual stays have I_hat=0). Pandas 2.x emits
+    # a FutureWarning that pandas 3.x will change concat dtype inference for
+    # empty / all-NA columns. We pre-harmonize the dtypes of the outcome
+    # bookkeeping columns to avoid both the warning and any version-dependent
+    # dtype drift in downstream consumers.
     final_df_list.append(pool)
+    for _df in final_df_list:
+        for _col, _dtype in (("I_hat", "float64"), ("Z_hat", "float64"), ("Y_hat", "float64")):
+            if _col in _df.columns:
+                _df[_col] = _df[_col].astype(_dtype)
+            else:
+                _df[_col] = pd.Series(np.nan, index=_df.index, dtype=_dtype)
     pool = pd.concat(final_df_list, ignore_index=True)
     pool.sort_values([id, time_name], ascending=[True, True], inplace=True)
     pool.reset_index(drop=True, inplace=True)
