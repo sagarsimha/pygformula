@@ -288,7 +288,13 @@ def fit_covariate_model(covmodels, covnames, covtypes, covfits_custom, time_name
                     model_fits_summary[cov] = cov_fit.summary()
 
             elif covtypes[k] == 'custom':
-                if np.issubdtype(fit_data[cov].dtype, np.number):
+                # FIX (NumPy 2.x compat): `np.issubdtype(dtype, np.number)` raises
+                # TypeError on pandas extension dtypes (CategoricalDtype, StringDtype, ...).
+                # `pd.api.types.is_numeric_dtype` returns False for those cleanly.
+                # Also semantically: a Categorical whose codes happen to be int-typed
+                # should not record min/max bounds, which `is_numeric_dtype` also
+                # correctly handles (returns False).
+                if pd.api.types.is_numeric_dtype(fit_data[cov].dtype):
                     bounds[cov] = [fit_data[cov].min(), fit_data[cov].max()]
                 fit_func = covfits_custom[k]
                 cov_fit = fit_func(covmodel=covmodels[k], covname=covnames[k], fit_data=fit_data)
@@ -585,7 +591,7 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits,
 
     fit_data = obs_data[obs_data[time_name] >= 0]
     fit_data = fit_data[fit_data[I_name].notna()]
-    #fit_data.to_parquet("fit_data_I.parquet")
+    fit_data.to_parquet("fit_data_I.parquet")
 
     if I_model_fit_custom is not None:
         # Custom path (e.g., LightGBM). The user is responsible for the
@@ -720,7 +726,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    #fit_data_Z.to_parquet("fit_data_Z.parquet")
+    fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
