@@ -136,8 +136,12 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
             for k, covname in enumerate(covnames):
                 #print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
                 #print(covname)
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
-                    all_levels = np.unique(obs_data[covname])
+                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and isinstance(obs_data[covname].dtype, pd.CategoricalDtype)):
+                    # FIX (NumPy 2.x compat): np.unique on a categorical column containing NaN
+                    # fails because np.asarray() yields an object array mixing strings
+                    # with float('nan'), and sort() cannot compare them.
+                    # Drop NaN first; NaN is not a category level we want to enumerate.
+                    all_levels = np.unique(np.asarray(obs_data[covname].dropna()))
                     all_levels_obs_prob = []
                     for level in all_levels:
                         obs_level_prob = obs_data[obs_data[covname].notna()].groupby([time_name]).apply(lambda g:
@@ -193,8 +197,12 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
             for k, covname in enumerate(covnames):
                 #print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
                 #print(covname)
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
-                    all_levels = np.unique(obs_data[covname])
+                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and isinstance(obs_data[covname].dtype, pd.CategoricalDtype)):
+                    # FIX (NumPy 2.x compat): np.unique on a categorical column containing NaN
+                    # fails because np.asarray() yields an object array mixing strings
+                    # with float('nan'), and sort() cannot compare them.
+                    # Drop NaN first; NaN is not a category level we want to enumerate.
+                    all_levels = np.unique(np.asarray(obs_data[covname].dropna()))
                     all_levels_est_prob_mean = []
                     for level in all_levels:
                         est_level_prob = nc_pool[nc_pool[covname].notna()].groupby([time_name]).apply(
@@ -214,8 +222,12 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         if covnames is not None:
             for k, covname in enumerate(covnames):
                 #print('##########', covname)
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
-                    all_levels = np.unique(obs_data[covname])
+                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and isinstance(obs_data[covname].dtype, pd.CategoricalDtype)):
+                    # FIX (NumPy 2.x compat): np.unique on a categorical column containing NaN
+                    # fails because np.asarray() yields an object array mixing strings
+                    # with float('nan'), and sort() cannot compare them.
+                    # Drop NaN first; NaN is not a category level we want to enumerate.
+                    all_levels = np.unique(np.asarray(obs_data[covname].dropna()))
                     all_levels_obs_prob_mean = []
                     for level in all_levels:
                         obs_level_prob = obs_data.groupby([time_name]).apply(lambda g: ((g[covname] == level)).mean(), include_groups=False).tolist()[:time_points]
@@ -288,8 +300,12 @@ def comparison_calculate(obs_data, time_name, time_points, id, covnames, covtype
         est_means = {}
         if covnames is not None:
             for k, covname in enumerate(covnames):
-                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and pd.api.types.is_categorical_dtype(obs_data[covname])):
-                    all_levels = np.unique(obs_data[covname])
+                if covtypes[k] == 'categorical' or (covtypes[k] == 'custom' and isinstance(obs_data[covname].dtype, pd.CategoricalDtype)):
+                    # FIX (NumPy 2.x compat): np.unique on a categorical column containing NaN
+                    # fails because np.asarray() yields an object array mixing strings
+                    # with float('nan'), and sort() cannot compare them.
+                    # Drop NaN first; NaN is not a category level we want to enumerate.
+                    all_levels = np.unique(np.asarray(obs_data[covname].dropna()))
                     all_levels_est_prob_mean = []
                     for level in all_levels:
                         est_level_prob = nc_pool[nc_pool[covname].notna()].groupby([time_name]).apply(
