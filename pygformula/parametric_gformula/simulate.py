@@ -338,6 +338,14 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
         column_names.extend(ts_visit_names)
     pool = obs_data.loc[:, column_names]
 
+    # Initialise the bin-level I-event indicator on pool, so that it propagates
+    # through every slicing operation later. Without this, `pool_with_I1_t = pool[...]`
+    # would produce a DataFrame missing the I_event_t column (or with NaN where
+    # the bin-level sample value should be), and the per-t I-hazard plot would
+    # show zero deaths.
+    pool = pool.copy()
+    pool["I_event_t"] = np.nan
+
 
     #Changes for NC, SR, DR
     final_df_list = [] # Collect dataframes of ids which has A=1 at t=0, t=1, t=2 and so on.
@@ -448,6 +456,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t0.loc[pool_with_A1_t0[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z 
                     pool_with_A1_t0["I_hat"] = np.nan #In-ICU death is NA for those discharged.
+                    pool_with_A1_t0["I_event_t"] = np.nan  # No I-bin event applies to discharged stays
                     pool['Z_hat'] = np.nan # For the rest of the pool
 
                 '''if outcome_type == 'continuous_eof':
@@ -482,7 +491,19 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 #pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
 
                 I_t0 = pre_i.apply(binorm_sample, simul_rng=simul_rng)
-                pool_with_A0_t0_t['I_hat'] = I_t0
+
+                # Persist the bin-level event into `pool` BEFORE slicing
+                # `pool_with_I1_t0` from it. Without this, the bin-level
+                # I_event_t lives only on the local `pool_with_A0_t0_t` copy
+                # and is lost when that DataFrame goes out of scope.
+                # `.values` strips the Series index to make the assignment
+                # purely positional, avoiding any chance of misalignment.
+                pool.loc[pool_with_A0_t0_t.index, 'I_event_t'] = I_t0.values
+                pool.loc[pool_with_A0_t0_t.index, 'I_hat']     = I_t0.values
+
+                # Keep the local copy in sync for the immediate ids_with_I1_t0 lookup.
+                pool_with_A0_t0_t['I_event_t'] = I_t0  # bin-level event indicator
+                pool_with_A0_t0_t['I_hat'] = I_t0      # bin-level marker, will be overwritten if stay dies
 
                 ids_with_I1_t0 = pool_with_A0_t0_t.loc[pool_with_A0_t0_t['I_hat'] == 1, id].unique()    # ids with I=1 at t=0 (A=0 as well)
 
@@ -490,6 +511,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_I1_t0)]  # Remove ids with I=1, t=0 (A=0) from pool
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
+                # Stay-level death indicator: I_hat = 1 on every row of the stay.
+                # I_event_t stays as it was set during sampling — only 1 at the bin where
+                # death was drawn, 0 (or NaN at unobserved bins) elsewhere.
                 pool_with_I1_t0['I_hat'] = 1
                 pool_with_I1_t0['Z_hat'] = np.nan # For this cohort which suffered in-icu death, Z is NA.
                 pool['Z_hat'] = np.nan # For the rest of the pool
@@ -759,6 +783,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 if outcome_type == 'binary_eof':
                     pool_with_A1_t.loc[pool_with_A1_t[time_name] == t, 'Z_hat'] = death_by_K # Outcome Z. t is the time of discharge.
                     pool_with_A1_t["I_hat"] = np.nan #In-ICU death is NA for those discharged.
+                    pool_with_A1_t["I_event_t"] = np.nan  # No I-bin event applies to discharged stays
                     pool['Z_hat'] = np.nan # For the rest of the pool
 
                 '''if outcome_type == 'continuous_eof':
@@ -790,7 +815,16 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 #pre_i = pd.to_numeric(pre_i, errors="coerce").clip(1e-12, 1-1e-12).fillna(0.0)
 
                 I_t = pre_i.apply(binorm_sample, simul_rng=simul_rng)
-                pool_with_A0_t_t['I_hat'] = I_t
+
+                # Persist the bin-level event into `pool` BEFORE slicing
+                # `pool_with_I1_t` from it. See t=0 block for the same fix
+                # and rationale.
+                pool.loc[pool_with_A0_t_t.index, 'I_event_t'] = I_t.values
+                pool.loc[pool_with_A0_t_t.index, 'I_hat']     = I_t.values
+
+                # Keep the local copy in sync for the immediate ids_with_I1_t lookup.
+                pool_with_A0_t_t['I_event_t'] = I_t  # bin-level event indicator
+                pool_with_A0_t_t['I_hat'] = I_t      # bin-level marker, will be overwritten if stay dies
 
                 ids_with_I1_t = pool_with_A0_t_t.loc[pool_with_A0_t_t['I_hat'] == 1, id].unique()    # ids with I=1 at t (A=0 as well)
 
@@ -798,6 +832,9 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 pool = pool[~pool[id].isin(ids_with_I1_t)]  # Remove ids with I=1, t (A=0) from pool
 
                 # Store I=1 as Y=1 for IDs in pool_with_I1_t0. These are IDs with in-icu death.
+                # Stay-level death indicator: I_hat = 1 on every row of the stay.
+                # I_event_t stays as it was set during sampling — only 1 at the bin where
+                # death was drawn, 0 (or NaN at unobserved bins) elsewhere.
                 pool_with_I1_t['I_hat'] = 1
                 pool_with_I1_t['Z_hat'] = np.nan # For this cohort which suffered in-icu death, Z is NA.
                 pool['Z_hat'] = np.nan # For the rest of the pool
@@ -812,7 +849,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
     #print(pool[id].nunique(), 'unique ids in pool after simulation')
     
     # 1) Set I_hat = 0 for all rows
-    pool["I_hat"] = 0
+    pool["I_hat"] = 0      # administratively-censored survivors: stay-level I=0
+    pool["I_event_t"] = 0  # bin-level event=0 on all rows of these stays
 
     # 2) Set Z_hat = NaN for all rows
     pool["Z_hat"] = np.nan
@@ -832,7 +870,8 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
     # dtype drift in downstream consumers.
     final_df_list.append(pool)
     for _df in final_df_list:
-        for _col, _dtype in (("I_hat", "float64"), ("Z_hat", "float64"), ("Y_hat", "float64")):
+        for _col, _dtype in (("I_hat", "float64"), ("Z_hat", "float64"), ("Y_hat", "float64"),
+                             ("I_event_t", "float64")):
             if _col in _df.columns:
                 _df[_col] = _df[_col].astype(_dtype)
             else:
