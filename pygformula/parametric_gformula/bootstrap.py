@@ -20,7 +20,8 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
               outcome_type, outcome_name, competing, compevent_name, compevent_model, compevent_cens,
               boot_diag, trunc_params, visit_names, visit_covs, ts_visit_names, max_visits, time_thresholds,
               below_zero_indicator, baselags, restrictions, yrestrictions, compevent_restrictions, sim_trunc,
-              I_model, I_fit, I_name):
+              I_model, I_fit, I_name,
+              I_model_fit_custom=None, I_model_predict_custom=None):
     """
     This is an internal function to get the results of parametric g-formula for each bootstrap sample.
 
@@ -228,7 +229,9 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
         # Model for in-icu death (I)
         I_fit, I_model_coeffs, I_model_stderrs, I_model_vcovs, I_model_fits_summary = \
             fit_I_model(I_model=I_model, I_name=I_name,
-                                time_name=time_name, obs_data=resample_data, return_fits=boot_diag)
+                                time_name=time_name, obs_data=resample_data,
+                                return_fits=boot_diag,
+                                I_model_fit_custom=I_model_fit_custom)
         
         # Model for post-discharge mortality (Z)
         z_outcome_fit, zmodel_coeffs, zmodel_stderrs, zmodel_vcovs, zmodel_fits_summary = \
@@ -325,7 +328,9 @@ def Bootstrap(obs_data, boot_id, boot_rngs, int_descript, intervention_dicts, co
                                        baselags=baselags, below_zero_indicator=below_zero_indicator,
                                        restrictions=restrictions, yrestrictions=yrestrictions,
                                        compevent_restrictions=compevent_restrictions, sim_trunc=sim_trunc,
-                                       I_fit=I_fit, I_name=I_name
+                                       I_fit=I_fit, I_name=I_name,
+                                       I_model=I_model,
+                                       I_model_predict_custom=I_model_predict_custom
                                    )
             boot_results.append(boot_result['g_result'])
             boot_pools.append(boot_result['pool'])

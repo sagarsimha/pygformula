@@ -85,17 +85,38 @@ def update_precoded_history(pool, covnames, cov_hist, covtypes, time_name, id, b
                     if below_zero_indicator:
                         pool[lagged_cov] = np.array(pool.groupby([id])[cov].shift(lagged_nums[i]))
                     else:
-                        #print(pool.groupby(id).get_group(0)[cov])
-                        #print(pool.groupby(id)[cov].transform('first'))
+                        # FIX: when the covariate dtype is string/object/category (e.g. a
+                        # categorical declared as covtype='custom'), filling the lag at
+                        # t < lag_num with the integer 0 produces a mixed-dtype object
+                        # column. LightGBM's `categorical_feature` declaration then
+                        # cannot bind to this column properly. We use the reference
+                        # level (first observed category) for non-numeric columns and
+                        # 0 for numeric columns, matching what the categorical branch
+                        # above does for cov_type=='categorical'.
+                        col_dtype = pool[cov].dtype
+                        is_numeric = pd.api.types.is_numeric_dtype(col_dtype)
+                        if baselags:
+                            fill_values = pool.groupby(id)[cov].transform('first')
+                        elif is_numeric:
+                            fill_values = 0
+                        else:
+                            # Use the first observed non-null category as the reference level.
+                            non_null = pool[cov].dropna()
+                            if len(non_null):
+                                fill_values = non_null.iloc[0]
+                            else:
+                                fill_values = pd.NA
 
-                        fill_values = pool.groupby(id)[cov].transform('first') if baselags else 0
                         pool[lagged_cov] = np.where(pool[time_name] >= lagged_nums[i],
                                                     pool.groupby([id])[cov].shift(lagged_nums[i]), fill_values)
 
-                        #print(pool[time_name])
-                        #print(lagged_nums[i])
-                        #print(pool[lagged_cov])
-                        #print('###################')
+                        # Preserve the categorical dtype so LightGBM can recognise it.
+                        if isinstance(col_dtype, pd.CategoricalDtype):
+                            pool[lagged_cov] = pd.Categorical(
+                                pool[lagged_cov], categories=col_dtype.categories
+                            )
+                        elif not is_numeric:
+                            pool[lagged_cov] = pool[lagged_cov].astype("category")
 
         #import sys
         #sys.exit()

@@ -538,14 +538,18 @@ def fit_censor_model(censor_model, censor_name, time_name, obs_data, return_fits
 
 
 # Fitting a model for in-icu death
-def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
+def fit_I_model(I_model, I_name, time_name, obs_data, return_fits,
+                I_model_fit_custom=None):
     """
-    This is a function to fit parametric model for the in-icu death event.
+    Fit a parametric (GLM) or custom (e.g. LightGBM) model for the in-ICU death event.
 
     Parameters
     ----------
     I_model: Str
-        A string specifying the model statement for the in-icu death variable
+        A string specifying the model statement for the in-icu death variable.
+        For GLM this is a patsy-style formula; for a custom fitter the meaning
+        is whatever the user-provided `I_model_fit_custom` function expects
+        (typically `"D ~ x1 + x2 + ..."`).
 
     I_name: Str, default is None
         A string specifying the name of the in-icu death variable in obs_data.
@@ -554,32 +558,24 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
         A string specifying the name of the time variable in obs_data.
 
     obs_data: DataFrame
-        Observed data or resampled data used to estimate the parameters of the censor model.
+        Observed data or resampled data used to estimate the parameters of the model.
 
     return_fits: Bool
-        A boolean value indicating whether to get the coefficients, standard errors, variance-covariance matrices of the
-        fitted censor model.
+        A boolean value indicating whether to extract GLM coefficients, SEs, vcovs,
+        and summaries. Has no effect when I_model_fit_custom is provided.
+
+    I_model_fit_custom: Callable, optional
+        User-supplied fitter with signature
+            fit = I_model_fit_custom(I_model, fit_data)
+        where `fit_data` is the rows used to fit the model (rows with `I_name` not NA).
+        If provided, the GLM path is bypassed.
 
     Returns
     -------
-    I_fit: Class
-        A class object of the fitted model for the in-icu death event.
-
-    model_coeffs: Dict
-        A dictionary where the key is the name of in-icu death event and the value is the parameter estimates of the
-        fitted in-icu death model.
-
-    model_stderrs: Dict
-        A dictionary where the key is the name of in-icu death event and the value is the standard errors of the parameter
-        estimates of the fitted in-icu death model.
-
-    model_vcovs: Dict
-        A dictionary where the key is the name of in-icu death event and the value is the variance-covariance matrices of
-        the parameter estimates of the fitted in-icu death model.
-
-    model_fits_summary: Dict
-        A class object that contains the summary information of the fitted in-icu death model.
-
+    I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
+        For GLM: as before.
+        For custom: model_coeffs / stderrs / vcovs are empty dicts; model_fits_summary
+        may contain `I_fit.feature_importances_` if available (otherwise empty).
     """
 
     model_coeffs = {}
@@ -588,15 +584,30 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits):
     model_fits_summary = {}
 
     fit_data = obs_data[obs_data[time_name] >= 0]
-
     fit_data = fit_data[fit_data[I_name].notna()]
-    fit_data.to_parquet("fit_data_I.parquet")
-    I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
-    if return_fits:
-        model_coeffs[I_name] = I_fit.params
-        model_stderrs[I_name] = I_fit.bse
-        model_vcovs[I_name] = I_fit.cov_params()
-        model_fits_summary[I_name] = I_fit.summary()
+    #fit_data.to_parquet("fit_data_I.parquet")
+
+    if I_model_fit_custom is not None:
+        # Custom path (e.g., LightGBM). The user is responsible for the
+        # internals; pygformula treats `I_fit` as an opaque object that will
+        # later be consumed by I_model_predict_custom in simulate.
+        I_fit = I_model_fit_custom(I_model, fit_data)
+        # Light-touch summary if the fitted object exposes feature importances.
+        if return_fits and hasattr(I_fit, "feature_importances_"):
+            try:
+                model_fits_summary[I_name] = {
+                    "feature_name": list(getattr(I_fit, "feature_name_", [])),
+                    "feature_importances": list(I_fit.feature_importances_),
+                }
+            except Exception:
+                pass
+    else:
+        I_fit = smf.glm(I_model, fit_data, family=sm.families.Binomial()).fit()
+        if return_fits:
+            model_coeffs[I_name] = I_fit.params
+            model_stderrs[I_name] = I_fit.bse
+            model_vcovs[I_name] = I_fit.cov_params()
+            model_fits_summary[I_name] = I_fit.summary()
 
     return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
@@ -709,7 +720,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         check_weights=True,
     )
     
-    fit_data_Z.to_parquet("fit_data_Z.parquet")
+    #fit_data_Z.to_parquet("fit_data_Z.parquet")
 
     if zmodel_fit_custom is not None:
         # Fit custom model for Z
