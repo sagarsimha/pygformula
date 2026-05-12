@@ -691,13 +691,18 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     ]
 
     # Reweigh rows
+    # ----- SCHEMA NOTE -----
+    # Decision grid t in [0, T_MAX] with T_MAX = 59 (30-day horizon, 12h bins).
+    # grid_end(t) = (t+1)*12 hours since intime; final follow-up K = intime + 732h.
+    # Number of at-risk post-discharge bins for a discharge at tD is (T_MAX + 1 - tD).
+    # -----------------------
     fit_data_Z = build_postdischarge_weighted_rows(
         df=sub_data,
         stay_col="admission_id",
         t_col="t0",
-        ref_time_col="ref_time",
+        ref_time_col="ref_time",   # ignored if death_time_from_intime is present (see fallback)
         A_col="A",
-        t_max=60,  # 30 days in 12h grids -> t_max=59
+        t_max=59,  # FIX: was 60; correct is T_MAX=59 (decision grid t in [0,59])
         z_covs=z_covs,
         death_abs_col="death_abs_time",
         death_td_col="death_time_from_intime",
@@ -749,7 +754,8 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     return z_outcome_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 
-# Dataset for post-discharge constant hazards until K (e.g. 90 days in 12h grids -> t_max=179)
+# Dataset for post-discharge constant hazards until K
+# (e.g. 30 days in 12h grids -> t_max=59; the grid runs t in [0, t_max] inclusive.)
 def build_postdischarge_weighted_rows(
     df: pd.DataFrame,
     *,
@@ -757,7 +763,7 @@ def build_postdischarge_weighted_rows(
     t_col: str = "t0",
     ref_time_col: str = "ref_time",
     A_col: str = "A",                 # <-- set to your actual A column name
-    t_max: int = 60,                 # 0..59 grid (12h bins), 60 bins total
+    t_max: int = 59,                 # FIX: was 60; t in [0, 59], 60 bins total
     z_covs=None,
     death_abs_col: str = "death_abs_time",            # datetime64[ns] or None
     death_td_col: str = "death_time_from_intime",     # timedelta64[ns] or None
@@ -794,11 +800,18 @@ def build_postdischarge_weighted_rows(
     df = df.sort_values([stay_col, t_col], kind="mergesort")
 
     # ---- 1) Identify unique discharge row per stay (A==1) ----
+    # We also pull `intime` if present, to enable a clean fallback for death timing
+    # when `death_time_from_intime` is unavailable.
+    extra_cols = []
+    if death_td_col in df.columns:
+        extra_cols.append(death_td_col)
+    if death_abs_col in df.columns:
+        extra_cols.append(death_abs_col)
+    if "intime" in df.columns:
+        extra_cols.append("intime")
+
     discharge = (
-        #df.loc[df[A_col] == 1, [stay_col, t_col, ref_time_col, *z_covs,
-        df.loc[df[A_col] == 1, [stay_col, t_col, *z_covs,
-                               *( [death_td_col] if death_td_col in df.columns else [] ),
-                               *( [death_abs_col] if death_abs_col in df.columns else [] )]]
+        df.loc[df[A_col] == 1, [stay_col, t_col, *z_covs, *extra_cols]]
           .drop_duplicates(subset=[stay_col], keep="first")
           .copy()
     )
@@ -812,34 +825,49 @@ def build_postdischarge_weighted_rows(
     discharge["tD"] = discharge["tD"].astype(int)
 
     # ---- 2) Compute death time-from-intime (timedelta) robustly ----
-    # Prefer death_time_from_intime if present & non-null, else use death_abs_time - inferred_intime
+    # Prefer death_time_from_intime if present & non-null; otherwise fall back to
+    # (death_abs_time - intime). The previous version used ref_time, which is a
+    # derived quantity not always available; intime is per-stay invariant and
+    # almost always present in the source schema (3_organize).
     death_td = None
 
     if death_td_col in discharge.columns:
         death_td = discharge[death_td_col]
 
     if (death_td is None) or death_td.isna().all():
-        # Infer intime using: ref_time = intime + (t+1)*12h  => intime = ref_time - (t+1)*12h
-        if death_abs_col not in discharge.columns:
+        # Fallback: requires death_abs_col AND intime in the discharge frame.
+        if death_abs_col in discharge.columns and "intime" in discharge.columns:
+            death_td = discharge[death_abs_col] - discharge["intime"]
+        else:
             # No way to compute death timing
             death_td = pd.Series(pd.NaT, index=discharge.index, dtype="timedelta64[ns]")
-        else:
-            inferred_intime = discharge[ref_time_col] - pd.to_timedelta((discharge["tD"] + 1) * 12, unit="h")
-            death_td = discharge[death_abs_col] - inferred_intime
 
     # Normalize to timedelta64[ns]
     death_td = pd.to_timedelta(death_td, errors="coerce")
 
     # ---- 3) Map death timedelta to grid index t_death ----
-    # You previously used: t_death = ceil(death_td / 12h) - 1
-    # (This aligns to your earlier mapping; keep it consistent.)
+    # Schema: W^Y_t = [grid_end(t), grid_end(t+1)) = [12(t+1), 12(t+2))h since intime.
+    # A death at hour tau belongs to W^Y_t iff floor(tau/12) - 1 == t.
+    # (The previous code used `ceil(tau/12) - 1`, which only agrees at exact 12h
+    # boundaries and is off-by-one for any interior death timestamp.)
     bin_len = pd.Timedelta(hours=12)
 
     td_valid = death_td.notna() & (death_td >= pd.Timedelta(0))
     td_ratio = (death_td[td_valid] / bin_len).astype(float)
 
     t_death = pd.Series(pd.NA, index=discharge.index, dtype="Int64")
-    t_death.loc[td_valid] = (np.ceil(td_ratio) - 1).astype(int)
+    t_death.loc[td_valid] = (np.floor(td_ratio).astype(int) - 1)
+
+    # Eligibility: no death before tau_0 should reach here, since 3_organize's
+    # cell-39 eligibility filter excludes stays with death_time_from_intime < 12h.
+    # We assert it as a safety net rather than silently coercing.
+    if (t_death.dropna() < 0).any():
+        n_bad = int((t_death.dropna() < 0).sum())
+        raise AssertionError(
+            f"build_postdischarge_weighted_rows: found {n_bad} discharged stays with "
+            f"t_death < 0 (death before tau_0 = intime + 12h). "
+            f"This should be impossible given upstream eligibility filtering."
+        )
 
     # If death occurs after follow-up, treat as "no death within K"
     t_death_within = t_death.notna() & (t_death <= t_max)

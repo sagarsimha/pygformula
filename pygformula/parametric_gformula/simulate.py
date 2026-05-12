@@ -64,18 +64,24 @@ def simulate_postdischarge_constant_hazard(
     *,
     id_col: str = "admission_id",
     tD_col: str = "tD",     # "t0" is the discharge index tD since the row at discharge is fed.
-    t_max: int = 60,
+    t_max: int = 59,        # FIX: was 60; t in [0, 59], 60 bins total.
     seed: int = 2026,
     return_t_death: bool = False,
 ) -> pd.DataFrame:
     """
     Simulate post-discharge death by K under a constant discrete-time hazard model.
 
-    - p_i = model-predicted per-interval (12h) death probability after discharge
-    - n_i = number of at-risk intervals from tD through t_max inclusive = t_max + 1 - tD
-    - death_by_K ~ Bernoulli(q_i) where q_i = 1 - (1 - p_i)^n_i
+    Schema:
+    - Grid t in [0, t_max] with t_max = 59 (30-day horizon, 12h bins).
+    - W^Y_t = [grid_end(t), grid_end(t+1)) = [12(t+1), 12(t+2))h since intime.
+    - K = grid_end(t_max + 1) = 12(t_max + 2)h since intime = 732h for t_max=59.
+
+    Risk-set semantics:
+    - p_i = model-predicted per-interval (12h) death probability after discharge.
+    - n_i = number of at-risk intervals from tD through t_max inclusive = t_max + 1 - tD.
+    - death_by_K ~ Bernoulli(q_i) where q_i = 1 - (1 - p_i)^n_i.
     - If return_t_death:
-        sample T_i ~ Geometric(p_i) (support 1,2,...) as number of intervals until death.
+        T_i ~ Geometric(p_i), support {1, 2, ...}.
         If T_i <= n_i => death at grid index t_death = tD + (T_i - 1), else censored.
     """
 
