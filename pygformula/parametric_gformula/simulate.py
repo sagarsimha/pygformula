@@ -55,7 +55,7 @@ def apply_bounds(prediction, cov, bounds, integer=False):
 
     return prediction
 
-def simulate_postdischarge_constant_hazard(
+def simulate_postdischarge_variable_hazard(
     pool_with_A1_t_t: pd.DataFrame,
     zmodel,
     zmodel_predict_custom,
@@ -64,12 +64,12 @@ def simulate_postdischarge_constant_hazard(
     *,
     id_col: str = "admission_id",
     tD_col: str = "tD",     # "t0" is the discharge index tD since the row at discharge is fed.
-    t_max: int = 59,        # FIX: was 60; t in [0, 59], 60 bins total.
-    seed: int = 2026,
+    t_max: int = 59,        # t in [0, 59], 60 bins total.
     return_t_death: bool = False,
 ) -> pd.DataFrame:
     """
-    Simulate post-discharge death by K under a constant discrete-time hazard model.
+    Simulate post-discharge death by K under a variable (time-since-discharge)
+    discrete-time hazard model.
 
     Schema:
     - Grid t in [0, t_max] with t_max = 59 (30-day horizon, 12h bins).
@@ -77,12 +77,28 @@ def simulate_postdischarge_constant_hazard(
     - K = grid_end(t_max + 1) = 12(t_max + 2)h since intime = 732h for t_max=59.
 
     Risk-set semantics:
-    - p_i = model-predicted per-interval (12h) death probability after discharge.
-    - n_i = number of at-risk intervals from tD through t_max inclusive = t_max + 1 - tD.
-    - death_by_K ~ Bernoulli(q_i) where q_i = 1 - (1 - p_i)^n_i.
-    - If return_t_death:
-        T_i ~ Geometric(p_i), support {1, 2, ...}.
-        If T_i <= n_i => death at grid index t_death = tD + (T_i - 1), else censored.
+    - For each discharged row at tD, expand into (t_max + 1 - tD) post-discharge
+      bins with tsd = 0, 1, ..., t_max - tD. The hazard model predicts a per-bin
+      probability p_{i,tsd} that may depend on (frozen z_covs, tsd, tD).
+    - Per-bin Bernoulli draws z_{i, tsd} are taken independently.
+    - death_by_K_i = 1 iff any z_{i, tsd} == 1.
+    - If return_t_death and death_by_K_i == 1: t_death_i = tD + (first tsd at
+      which z_{i, tsd} == 1).
+
+    Differences from the constant-hazards version:
+    - The cumulative q_i is computed by per-bin Bernoulli sampling rather than
+      the closed form 1 - (1 - p)^n. This allows the model to express time-varying
+      hazard (e.g. front-loaded mortality immediately post-discharge), and removes
+      the systematic over-estimation of cumulative q under front-loaded true
+      hazard (Jensen's inequality on log(1-p) vs log(1-bar p)).
+    - The output index is preserved to match the call site's
+      pool_with_A1_t_t.index, so `result['death_by_K']` can be assigned back into
+      the simulator's pool DataFrame without realignment.
+
+    Return:
+    - DataFrame indexed like pool_with_A1_t_t with columns:
+        admission_id, tD, n_intervals, mean_p_per_bin, death_by_K
+        (+ t_death if return_t_death=True)
     """
 
     df = pool_with_A1_t_t.copy()
@@ -90,59 +106,109 @@ def simulate_postdischarge_constant_hazard(
     if df.shape[0] == 0:
         return pd.DataFrame(index=df.index, columns=[id_col, "tD", "death_by_K"])
 
-    # Basic checks
     if tD_col not in df.columns:
         raise KeyError(f"'{tD_col}' not found. Set tD_col to your discharge index column (e.g. 't0').")
-    
+
     df[tD_col] = df[tD_col].astype(int)
 
-    # Number of intervals at risk (must be >=1 to contribute any risk)
-    n = (t_max + 1 - df[tD_col]).astype(int)
+    tD_arr = df[tD_col].to_numpy(dtype=int)
+    n = (t_max + 1 - tD_arr).astype(int)
+    n = np.maximum(n, 0)
 
-    # If you want to drop discharges beyond horizon (no risk time within K), do it here:
-    # df = df.loc[n > 0].copy()
-    # n = n.loc[df.index]
+    n_disch = len(df)
 
-    # Predicted per-interval hazard p_i
+    # ---- Expand each discharge row into n_i post-discharge bins ----
+    # Skip discharges with n == 0 (would mean tD > t_max — should not occur).
+    keep = n > 0
+    if not keep.all():
+        n_dropped = int((~keep).sum())
+        print(f"simulate_postdischarge_variable_hazard: {n_dropped} discharge rows "
+              f"have tD > t_max and contribute zero post-discharge risk.")
+
+    df_keep = df.loc[keep].copy()
+    tD_keep = tD_arr[keep]
+    n_keep = n[keep]
+
+    if df_keep.shape[0] == 0:
+        # All discharges out of horizon — return zero deaths aligned to input.
+        out = pd.DataFrame({
+            id_col: df[id_col].values if id_col in df.columns else np.arange(n_disch),
+            "tD": tD_arr,
+            "n_intervals": n,
+            "mean_p_per_bin": np.zeros(n_disch),
+            "death_by_K": np.zeros(n_disch, dtype=int),
+        }, index=df.index)
+        if return_t_death:
+            out["t_death"] = np.nan
+        return out
+
+    # Repeat each discharge row n_i times. rep_idx selects from df_keep positions.
+    rep_idx = np.repeat(np.arange(len(df_keep)), n_keep)
+    post = df_keep.iloc[rep_idx].copy()
+
+    # Per-bin offsets within each block: tsd = 0, 1, ..., n_i - 1
+    ends = np.cumsum(n_keep)
+    starts = ends - n_keep
+    total = int(ends[-1])
+    tsd = np.empty(total, dtype=int)
+    for i in range(len(n_keep)):
+        tsd[starts[i]:ends[i]] = np.arange(int(n_keep[i]), dtype=int)
+
+    post["tsd"] = tsd
+    post["tD"] = np.repeat(tD_keep, n_keep)
+    # 't' (grid index for this bin) is informative but not required by predict.
+    post["t"] = post["tD"].to_numpy(dtype=int) + post["tsd"].to_numpy(dtype=int)
+
+    # ---- Predict per-bin hazard ----
     if zmodel_predict_custom is not None:
-        p = zmodel_predict_custom(zmodel=zmodel, new_df=df, fit=z_outcome_fit)
-        #p.to_csv("debug_zmodel_predict_custom.csv")
-        #print("Number is", n)
+        p = zmodel_predict_custom(zmodel=zmodel, new_df=post, fit=z_outcome_fit)
     else:
         # statsmodels will use the formula design-info inside z_outcome_fit
-        p = z_outcome_fit.predict(df).astype(float)
+        p = z_outcome_fit.predict(post).astype(float)
 
-    # Numerical safety
-    p = p.astype(float).to_numpy()
+    p = np.asarray(p, dtype=float)
     eps = 1e-12
     p = np.clip(p, eps, 1 - eps)
 
-    # Probability of death by K under constant hazard over n intervals
-    q = 1.0 - np.power((1.0 - p), n)
+    # ---- Per-bin Bernoulli draws ----
+    u = simul_rng.uniform(size=p.shape[0])
+    z = (u < p).astype(np.int8)
 
-    death_by_K = simul_rng.binomial(n=1, p=q, size=len(df)).astype(int)
+    # ---- Aggregate per discharge row ----
+    # death_by_K = max over bins; t_death = tD + first tsd with z==1 (if any).
+    death_by_K_keep = np.zeros(len(df_keep), dtype=int)
+    if return_t_death:
+        t_death_keep = np.full(len(df_keep), np.nan)
+    mean_p_keep = np.zeros(len(df_keep))
+
+    for i in range(len(df_keep)):
+        s, e = int(starts[i]), int(ends[i])
+        block_z = z[s:e]
+        block_p = p[s:e]
+        mean_p_keep[i] = float(block_p.mean()) if e > s else 0.0
+        if block_z.any():
+            death_by_K_keep[i] = 1
+            if return_t_death:
+                first_pos = int(np.argmax(block_z))  # first True/1
+                t_death_keep[i] = float(tD_keep[i] + first_pos)
+
+    # ---- Map keep-only results back to the full input ----
+    death_by_K = np.zeros(n_disch, dtype=int)
+    mean_p = np.zeros(n_disch)
+    death_by_K[keep] = death_by_K_keep
+    mean_p[keep] = mean_p_keep
 
     out = pd.DataFrame({
-        id_col: df[id_col].values if id_col in df.columns else np.arange(len(df)),
-        "tD": df[tD_col].values,
-        "n_intervals": n.values,
-        "p_interval": p,
-        "p_death_by_K": q,
+        id_col: df[id_col].values if id_col in df.columns else np.arange(n_disch),
+        "tD": tD_arr,
+        "n_intervals": n,
+        "mean_p_per_bin": mean_p,
         "death_by_K": death_by_K,
     }, index=df.index)
 
     if return_t_death:
-        # Sample time-to-death in intervals after discharge: T ~ Geometric(p)
-        # numpy geometric returns support {1,2,...}
-        T = simul_rng.geometric(p, size=len(df))
-
-        # Death occurs within horizon iff T <= n
-        died = (T <= n.values) & (death_by_K == 1)  # consistent with Bernoulli(q) draw
-        # If you prefer deterministic consistency, you can set died = (T <= n.values) and ignore death_by_K.
-
-        t_death = np.full(len(df), np.nan)
-        t_death[died] = (df[tD_col].values[died] + (T[died] - 1)).astype(float)
-
+        t_death = np.full(n_disch, np.nan)
+        t_death[keep] = t_death_keep
         out["t_death"] = t_death
 
     return out
@@ -446,7 +512,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                     #Z_A1_t0 = pre_z.apply(binorm_sample).to_numpy()
                 #Z_A1_t0 = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t0_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
                 pool_with_A1_t0_t_tD = pool_with_A1_t0_t.rename(columns={time_name: "tD"})
-                Z_A1_t0 = simulate_postdischarge_constant_hazard(pool_with_A1_t0_t_tD, 
+                Z_A1_t0 = simulate_postdischarge_variable_hazard(pool_with_A1_t0_t_tD, 
                                                                  zmodel,
                                                                  zmodel_predict_custom, 
                                                                  z_outcome_fit, 
@@ -790,7 +856,7 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 #Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
                 #Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
                 pool_with_A1_t_t_tD = pool_with_A1_t_t.rename(columns={time_name: "tD"})
-                Z_A1_t = simulate_postdischarge_constant_hazard(pool_with_A1_t_t_tD, 
+                Z_A1_t = simulate_postdischarge_variable_hazard(pool_with_A1_t_t_tD, 
                                                                 zmodel, 
                                                                 zmodel_predict_custom, 
                                                                 z_outcome_fit, 
