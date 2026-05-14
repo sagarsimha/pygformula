@@ -630,7 +630,7 @@ def fit_I_model(I_model, I_name, time_name, obs_data, return_fits,
     return I_fit, model_coeffs, model_stderrs, model_vcovs, model_fits_summary
 
 
-# Fitting a model for post-discharge mortality with constant hazards until K
+# Fitting a model for post-discharge mortality with variable hazards until K
 def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name, obs_data,
                competing, compevent_name, return_fits, zrestrictions):
     """
