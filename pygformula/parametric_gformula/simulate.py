@@ -964,11 +964,21 @@ def simulate(simul_rng, time_points, time_name, id, obs_data, basecovs,
                 #Z_A1_t = pre_z.apply(binorm_sample).to_numpy()
                 #Z_A1_t = simulate_post_discharge_Z_from_discharge_rows(pool_with_A1_t_t, z_outcome_fit, zmodel, zmodel_predict_custom, simul_rng)
                 pool_with_A1_t_t_tD = pool_with_A1_t_t.rename(columns={time_name: "tD"})
-                Z_A1_t = simulate_postdischarge_variable_hazard(pool_with_A1_t_t_tD, 
+                '''Z_A1_t = simulate_postdischarge_variable_hazard(pool_with_A1_t_t_tD, 
+                                                                zmodel, 
+                                                                zmodel_predict_custom, 
+                                                                z_outcome_fit, 
+                                                                simul_rng)'''
+                
+                Z_A1_t = simulate_postdischarge_constant_hazard(pool_with_A1_t_t_tD, 
                                                                 zmodel, 
                                                                 zmodel_predict_custom, 
                                                                 z_outcome_fit, 
                                                                 simul_rng)
+                
+
+
+
                 death_by_K = Z_A1_t['death_by_K']
 
                 if outcome_type == 'binary_eof':
