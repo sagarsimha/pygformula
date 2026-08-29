@@ -723,8 +723,8 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     # Variable-hazards Z model. Build a long-format dataset with one row per
     # (discharged stay, post-discharge bin) for each at-risk bin from tD through
     # min(t_death, t_max) inclusive.
-    # Decision grid t in [0, T_MAX] with T_MAX = 59 (30-day horizon, 12h bins).
-    # grid_end(t) = (t+1)*12 hours since intime; final follow-up K = intime + 732h.
+    # Decision grid t in [0, T_MAX] with T_MAX = 13 (13-day horizon, 12h bins).
+    # grid_end(t) = (t+1)*12 hours since intime; final follow-up K = intime + 156h.
     # Per-bin hazard model: Z_t ~ z_covs(frozen at discharge) + tsd + tD,
     # where tsd = t - tD (time since discharge).
     # No frequency weights — the long format already encodes at-risk bin counts.
@@ -734,7 +734,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
         stay_col="admission_id",
         t_col="t0",
         A_col="A",
-        t_max=59,
+        t_max=13,
         z_covs=z_covs,
         death_abs_col="death_abs_time",
         death_td_col="death_time_from_intime",
@@ -788,14 +788,14 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
 
 
 # Dataset for post-discharge variable hazards until K
-# (e.g. 30 days in 12h grids -> t_max=59; the grid runs t in [0, t_max] inclusive.)
+# (e.g. 13 days in 12h grids -> t_max=13; the grid runs t in [0, t_max] inclusive.)
 def build_fit_data_Z_long(
     df: pd.DataFrame,
     *,
     stay_col: str = "admission_id",
     t_col: str = "t0",
     A_col: str = "A",
-    t_max: int = 59,
+    t_max: int = 13,
     z_covs=None,
     death_abs_col: str = "death_abs_time",            # datetime64[ns] or None
     death_td_col: str = "death_time_from_intime",     # timedelta64[ns] or None

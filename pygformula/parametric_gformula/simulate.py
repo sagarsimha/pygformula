@@ -64,7 +64,7 @@ def simulate_postdischarge_variable_hazard(
     *,
     id_col: str = "admission_id",
     tD_col: str = "tD",     # "t0" is the discharge index tD since the row at discharge is fed.
-    t_max: int = 59,        # t in [0, 59], 60 bins total.
+    t_max: int = 13,        # t in [0, 13], 14 bins total.
     return_t_death: bool = False,
 ) -> pd.DataFrame:
     """
@@ -72,9 +72,9 @@ def simulate_postdischarge_variable_hazard(
     discrete-time hazard model.
 
     Schema:
-    - Grid t in [0, t_max] with t_max = 59 (30-day horizon, 12h bins).
+    - Grid t in [0, t_max] with t_max = 13 (13-day horizon, 12h bins).
     - W^Y_t = [grid_end(t), grid_end(t+1)) = [12(t+1), 12(t+2))h since intime.
-    - K = grid_end(t_max + 1) = 12(t_max + 2)h since intime = 732h for t_max=59.
+    - K = grid_end(t_max + 1) = 12(t_max + 2)h since intime = 156h for t_max=13.
 
     Risk-set semantics:
     - For each discharged row at tD, expand into (t_max + 1 - tD) post-discharge
