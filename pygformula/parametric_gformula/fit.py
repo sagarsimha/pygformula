@@ -699,6 +699,7 @@ def fit_zmodel(zmodel, outcome_type, outcome_name, zmodel_fit_custom, time_name,
     sub_data = obs_data[obs_data[time_name] >= 0]
 
     z_covs = [
+        "age", "sex", "origin",
         "vent_mode__last__last_12h", 
         "fio2__last__last_12h", 
         "glasgow_coma_scale_total__last__last_12h", 
